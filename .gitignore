@@ -5,7 +5,6 @@ lib
 test/build
 test/exe
 
-thirdParty
 thirdParty/DBow3/build
 thirdParty/g2o/bin
 thirdParty/g2o/build
