@@ -1,11 +1,14 @@
 find_package (OpenCV REQUIRED)
 find_package (Eigen3 3.3.9 EXACT REQUIRED NO_MODULE)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}
-										${PROJECT_SOURCE_DIR}
-										${PROJECT_SOURCE_DIR}/include
-										${EIGEN3_INCLUDE_DIR}
-										${OpenCV_INCLUDE_DIRS})
+#include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+#										${PROJECT_SOURCE_DIR}
+#										${PROJECT_SOURCE_DIR}/include
+#										${EIGEN3_INCLUDE_DIR}
+#										${OpenCV_INCLUDE_DIRS})
+										
+link_directories(${PROJECT_SOURCE_DIR}/thirdParty/g2o/lib
+								 ${PROJECT_SOURCE_DIR}/thirdParty/DBow3/build/src)
 
 add_library(slam SHARED orbExtractor.cpp
 												orbMatcher.cpp
@@ -20,20 +23,19 @@ add_library(slam SHARED orbExtractor.cpp
 
 target_link_libraries(slam PUBLIC pthread
 																	${OpenCV_LIBRARIES}
-																	${PROJECT_SOURCE_DIR}/thirdParty/DBow3/build/src/libDBoW3.so
-																	${PROJECT_SOURCE_DIR}/thirdParty/g2o/lib/libg2o_core.so
-																	${PROJECT_SOURCE_DIR}/thirdParty/g2o/lib/libg2o_solver_dense.so
-																	${PROJECT_SOURCE_DIR}/thirdParty/g2o/lib/libg2o_solver_eigen.so
-																	${PROJECT_SOURCE_DIR}/thirdParty/g2o/lib/libg2o_types_sba.so
-																	${PROJECT_SOURCE_DIR}/thirdParty/g2o/lib/libg2o_types_sim3.so)
-
+																	DBoW3
+																	g2o_core
+																	g2o_solver_dense
+																	g2o_solver_eigen
+																	g2o_types_sba
+																	g2o_types_sim3)
+																	
 target_include_directories(slam PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+																			 ${PROJECT_SOURCE_DIR}
 																			 ${OpenCV_INCLUDE_DIRS}
-																			 ${PROJECT_SOURCE_DIR}/thirdParty/DBow3/
-																			 ${PROJECT_SOURCE_DIR}/thirdParty/DBow3/build/
-																			 ${PROJECT_SOURCE_DIR}/thirdParty/DBow3/build/src/
-																			 ${PROJECT_SOURCE_DIR}/thirdParty/g2o/
+																			 ${PROJECT_SOURCE_DIR}/thirdParty/DBow3/src
 																			 ${PROJECT_SOURCE_DIR}/thirdParty/g2o/build/)
+
 
 install(FILES orbExtractor.hpp 
 							orbMatcher.hpp

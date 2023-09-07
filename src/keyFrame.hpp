@@ -10,7 +10,7 @@
 #ifndef YDORBSLAM_KEYFRAME_HPP
 #define YDORBSLAM_KEYFRAME_HPP
 
-#include "DBoW3/DBoW3.h"
+#include "DBoW3.h"
 #include "orbExtractor.hpp"
 #include "mapPoint.hpp"
 #include "frame.hpp"

@@ -6,8 +6,8 @@
 #include "map.hpp"
 //#include "tracking.hpp"
 #include "keyFrameDatabase.hpp"
-#include "DBoW3/DBoW3.h"
-#include "thirdParty/g2o/g2o/types/sim3/types_seven_dof_expmap.h"
+#include "DBoW3.h"
+#include "g2o/types/sim3/types_seven_dof_expmap.h"
 
 #include <thread>
 #include <mutex>

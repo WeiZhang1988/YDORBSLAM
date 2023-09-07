@@ -1,6 +1,3 @@
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_INSTALL_RPATH ${PROJECT_SOURCE_DIR}/../lib)
-
 find_package (OpenCV REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
@@ -27,7 +24,7 @@ target_link_libraries(test PUBLIC slam
 
 target_include_directories(test PUBLIC ${PROJECT_SOURCE_DIR}/../include
 																			 ${OpenCV_INCLUDE_DIRS}
-																			 ${PROJECT_SOURCE_DIR}/../thirdParty/DBow3/build
+																			 ${PROJECT_SOURCE_DIR}/../thirdParty/DBow3/src
 																			 ${PROJECT_SOURCE_DIR}/../thirdParty/g2o
 																			 ${PROJECT_SOURCE_DIR}/../thirdParty/g2o/build)
 
