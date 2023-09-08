@@ -1,11 +1,5 @@
 find_package (OpenCV REQUIRED)
 find_package (Eigen3 3.3.9 EXACT REQUIRED NO_MODULE)
-
-#include_directories(${CMAKE_CURRENT_SOURCE_DIR}
-#										${PROJECT_SOURCE_DIR}
-#										${PROJECT_SOURCE_DIR}/include
-#										${EIGEN3_INCLUDE_DIR}
-#										${OpenCV_INCLUDE_DIRS})
 										
 link_directories(${PROJECT_SOURCE_DIR}/thirdParty/g2o/lib
 								 ${PROJECT_SOURCE_DIR}/thirdParty/DBow3/build/src)
@@ -30,11 +24,12 @@ target_link_libraries(slam PUBLIC pthread
 																	g2o_types_sba
 																	g2o_types_sim3)
 																	
-target_include_directories(slam PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-																			 ${PROJECT_SOURCE_DIR}
-																			 ${OpenCV_INCLUDE_DIRS}
-																			 ${PROJECT_SOURCE_DIR}/thirdParty/DBow3/src
-																			 ${PROJECT_SOURCE_DIR}/thirdParty/g2o/build/)
+target_include_directories(slam BEFORE PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+																			 			  ${PROJECT_SOURCE_DIR}/include
+																			 			  ${EIGEN3_INCLUDE_DIR}
+																			 			  ${OpenCV_INCLUDE_DIRS}
+																			 			  ${PROJECT_SOURCE_DIR}/thirdParty/DBow3/src
+																			 			  ${PROJECT_SOURCE_DIR}/thirdParty/g2o)
 
 
 install(FILES orbExtractor.hpp 

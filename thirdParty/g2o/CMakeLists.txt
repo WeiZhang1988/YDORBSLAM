@@ -366,7 +366,7 @@ find_package(Eigen3 3.3.9 EXACT REQUIRED NO_MODULE)
 if (TARGET Eigen3::Eigen)
   set(G2O_EIGEN3_EIGEN_TARGET Eigen3::Eigen)
 else()
-  include_directories(${EIGEN3_INCLUDE_DIR})
+  include_directories(BEFORE ${EIGEN3_INCLUDE_DIR})
 endif ()
 
 # Set up the top-level include directories
