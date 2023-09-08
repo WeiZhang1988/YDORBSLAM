@@ -49,9 +49,10 @@ namespace YDORBSLAM
       std::unique_lock<std::mutex> lock(m_mutex_ID);
       m_int_ID                = _frame.m_int_ID;
     }
-    m_cvMat_R_c2w             = _frame.m_cvMat_R_c2w;
-    m_cvMat_R_w2c             = _frame.m_cvMat_R_w2c;
-    m_cvMat_t_c2w             = _frame.m_cvMat_t_c2w;
+    m_cvMat_R_c2w             = _frame.m_cvMat_R_c2w.clone();
+    m_cvMat_R_w2c             = _frame.m_cvMat_R_w2c.clone();
+    m_cvMat_t_c2w             = _frame.m_cvMat_t_c2w.clone();
+    m_cvMat_T_c2w             = _frame.m_cvMat_T_c2w.clone();
     m_cvMat_origin            = _frame.m_cvMat_origin.clone();
   }
   Frame::Frame(const cv::Mat &_leftImage, const cv::Mat &_rightImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrLeftExtractor, std::shared_ptr<OrbExtractor> _sptrRightExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab):\
