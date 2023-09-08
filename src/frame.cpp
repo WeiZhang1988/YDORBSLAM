@@ -32,8 +32,8 @@ namespace YDORBSLAM
     m_v_depth                 = _frame.m_v_depth;
     m_bow_wordVec             = _frame.m_bow_wordVec;
     m_bow_keyPointsVec        = _frame.m_bow_keyPointsVec;
-    m_cvMat_descriptors       = _frame.m_cvMat_descriptors;
-    m_cvMat_rightDescriptors  = _frame.m_cvMat_rightDescriptors;
+    m_cvMat_descriptors       = _frame.m_cvMat_descriptors.clone();
+    m_cvMat_rightDescriptors  = _frame.m_cvMat_rightDescriptors.clone();
     m_v_sptrMapPoints         = _frame.m_v_sptrMapPoints;
     m_v_isOutliers            = _frame.m_v_isOutliers;
     m_vvv_grid                = _frame.m_vvv_grid;
@@ -52,6 +52,7 @@ namespace YDORBSLAM
     m_cvMat_R_c2w             = _frame.m_cvMat_R_c2w;
     m_cvMat_R_w2c             = _frame.m_cvMat_R_w2c;
     m_cvMat_t_c2w             = _frame.m_cvMat_t_c2w;
+    m_cvMat_origin            = _frame.m_cvMat_origin.clone();
   }
   Frame::Frame(const cv::Mat &_leftImage, const cv::Mat &_rightImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrLeftExtractor, std::shared_ptr<OrbExtractor> _sptrRightExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab):\
   m_sptr_vocab(_sptrVocab),m_sptr_leftOrbExtractor(_sptrLeftExtractor),m_sptr_rightOrbExtractor(_sptrRightExtractor),\
