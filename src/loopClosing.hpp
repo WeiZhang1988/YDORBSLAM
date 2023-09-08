@@ -6,7 +6,7 @@
 #include "map.hpp"
 //#include "tracking.hpp"
 #include "keyFrameDatabase.hpp"
-#include "DBoW3.h"
+#include "DBoW3/DBoW3.h"
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <g2o/config.h>

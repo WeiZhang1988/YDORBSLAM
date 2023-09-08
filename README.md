@@ -1,8 +1,6 @@
 # YDORBSLAM
-1. build and install third party eigen
+run build_and_install.bash in each subfolder of thirdParty
 
-2. build and third party DBoW3
+possible bugs
 
-3. build and third party g2o
-
-4. build_and_run.sh
+1. thirdParty/eigen/scripts/buildtests.in may not be uploaded correctly due to unknown github issue

@@ -16,7 +16,7 @@
 #include <mutex>
 #include "keyFrame.hpp"
 #include "frame.hpp"
-#include "DBoW3.h"
+#include "DBoW3/DBoW3.h"
 
 namespace YDORBSLAM{
   class Frame;

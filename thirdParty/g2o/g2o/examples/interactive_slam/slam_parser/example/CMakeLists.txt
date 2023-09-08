@@ -11,11 +11,11 @@ add_executable(test_slam_interface test_slam_interface.cpp)
 target_link_libraries(test_slam_interface example_library)
 set_target_properties(test_slam_interface PROPERTIES OUTPUT_NAME test_slam_interface${EXE_POSTFIX})
 
-#install(TARGETS example_library
-  #RUNTIME DESTINATION ${RUNTIME_DESTINATION}
-  #LIBRARY DESTINATION ${LIBRARY_DESTINATION}
-  #ARCHIVE DESTINATION ${ARCHIVE_DESTINATION}
-#)
+install(TARGETS example_library
+  RUNTIME DESTINATION ${RUNTIME_DESTINATION}
+  LIBRARY DESTINATION ${LIBRARY_DESTINATION}
+  ARCHIVE DESTINATION ${ARCHIVE_DESTINATION}
+)
 
-#file(GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
-#install(FILES ${headers} DESTINATION include/slam_parser/example)
+file(GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
+install(FILES ${headers} DESTINATION include/slam_parser/example)

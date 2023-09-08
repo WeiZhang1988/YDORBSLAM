@@ -1,7 +1,7 @@
 #include "orbMatcher.hpp"
 #include <limits.h>
 #include <opencv2/opencv.hpp>
-#include "DBoW3.h"
+#include "DBoW3/DBoW3.h"
 
 namespace YDORBSLAM{
   const int OrbMatcher::m_int_highThd = 100;

@@ -13,7 +13,7 @@
 #include <vector>
 #include <memory>
 #include <opencv2/opencv.hpp>
-#include "DBoW3.h"
+#include "DBoW3/DBoW3.h"
 #include "orbExtractor.hpp"
 
 namespace YDORBSLAM{

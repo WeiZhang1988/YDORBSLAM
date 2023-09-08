@@ -6,8 +6,12 @@ test/build
 test/exe
 
 thirdParty/DBow3/build
+thirdParty/DBow3/install
+
 thirdParty/g2o/bin
 thirdParty/g2o/build
 thirdParty/g2o/lib
+thirdParty/g2o/install
+
 thirdParty/eigen/build
 thirdParty/eigen/install

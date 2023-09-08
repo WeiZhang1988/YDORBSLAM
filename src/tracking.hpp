@@ -11,7 +11,7 @@
 #define YDORBSLAM_TRACKING_HPP
 
 #include <opencv2/opencv.hpp>
-#include "DBoW3.h"
+#include "DBoW3/DBoW3.h"
 #include "map.hpp"
 #include "frame.hpp"
 #include "keyFrameDatabase.hpp"
