@@ -9,8 +9,10 @@ namespace YDORBSLAM
   long int Frame::m_int_reservedID = 0;
   bool Frame::m_b_isComputeInit = true;
   cv::Mat Frame::m_cvMat_intParMat;
-  float Frame::m_flt_cx, Frame::m_flt_cy, Frame::m_flt_fx, Frame::m_flt_fy, Frame::m_flt_invFx, Frame::m_flt_invFy;
   cv::Mat Frame::m_cvMat_imageDistCoef;
+  cv::Mat Frame::m_cvMat_rightIntParMat;
+  cv::Mat Frame::m_cvMat_rightImageDistCoef;
+  float Frame::m_flt_cx, Frame::m_flt_cy, Frame::m_flt_fx, Frame::m_flt_fy, Frame::m_flt_invFx, Frame::m_flt_invFy;
   float Frame::m_flt_baseLineTimesFx;
   float Frame::m_flt_baseLine;
   float Frame::m_flt_gridCellHeightInv, Frame::m_flt_gridCellWidthInv;
@@ -55,7 +57,7 @@ namespace YDORBSLAM
     m_cvMat_T_c2w             = _frame.m_cvMat_T_c2w.clone();
     m_cvMat_origin            = _frame.m_cvMat_origin.clone();
   }
-  Frame::Frame(const cv::Mat &_leftImage, const cv::Mat &_rightImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrLeftExtractor, std::shared_ptr<OrbExtractor> _sptrRightExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab):\
+  Frame::Frame(const cv::Mat &_leftImage, const cv::Mat &_rightImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const cv::Mat &_rightCamIntParMat, const cv::Mat &_rightImageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrLeftExtractor, std::shared_ptr<OrbExtractor> _sptrRightExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab):\
   m_sptr_vocab(_sptrVocab),m_sptr_leftOrbExtractor(_sptrLeftExtractor),m_sptr_rightOrbExtractor(_sptrRightExtractor),\
   m_d_timeStamp(_timeStamp),m_flt_depthThd(_depthThd){
     {
@@ -64,6 +66,8 @@ namespace YDORBSLAM
     }
     m_cvMat_intParMat = _camIntParMat;
     m_cvMat_imageDistCoef = _imageDistCoef;
+    m_cvMat_rightIntParMat = _rightCamIntParMat;
+    m_cvMat_rightImageDistCoef = _rightImageDistCoef;
     m_flt_baseLineTimesFx = _baseLineTimesFx;
     m_int_scaleLevelsNum = m_sptr_leftOrbExtractor->getLevelsNum();
     m_flt_scaleFactor = m_sptr_leftOrbExtractor->getScaleFactor();
@@ -81,6 +85,7 @@ namespace YDORBSLAM
       return;
     }
     undistortKeyPoints();
+    undistortRightKeyPoints();
     computeStereoMatches();
     m_v_sptrMapPoints = std::vector<std::shared_ptr<MapPoint>>(m_int_keyPointsNum,static_cast<std::shared_ptr<MapPoint>>(nullptr));
     m_v_isOutliers = std::vector<bool>(m_int_keyPointsNum,false);
@@ -163,6 +168,25 @@ namespace YDORBSLAM
       for(int i=0;i<m_int_keyPointsNum;i++){
         m_v_keyPoints[i].pt.x = mat.at<float>(i,0);
         m_v_keyPoints[i].pt.y = mat.at<float>(i,1);
+      }
+    }
+  }
+  void Frame::undistortRightKeyPoints(){
+    if(m_cvMat_rightImageDistCoef.at<float>(0)!=0.0){
+      //fill matrix with points
+      cv::Mat mat(m_v_rightKeyPoints.size(),2,CV_32F);
+      for(int i=0;i<m_v_rightKeyPoints.size();i++){
+        mat.at<float>(i,0)=m_v_rightKeyPoints[i].pt.x;
+        mat.at<float>(i,1)=m_v_rightKeyPoints[i].pt.y;
+      }
+      //undistort points
+      mat = mat.reshape(2);
+      cv::undistortPoints(mat,mat,m_cvMat_rightIntParMat,m_cvMat_rightImageDistCoef,cv::Mat(),m_cvMat_rightIntParMat);
+      mat = mat.reshape(1);
+      //fill undistorted key point vector
+      for(int i=0;i<m_v_rightKeyPoints.size();i++){
+        m_v_rightKeyPoints[i].pt.x = mat.at<float>(i,0);
+        m_v_rightKeyPoints[i].pt.y = mat.at<float>(i,1);
       }
     }
   }

@@ -102,8 +102,10 @@ namespace YDORBSLAM{
     double m_d_timeStamp;
     //calibration information
     static cv::Mat m_cvMat_intParMat;
-    static float m_flt_fx, m_flt_fy, m_flt_cx, m_flt_cy, m_flt_invFx, m_flt_invFy;
     static cv::Mat m_cvMat_imageDistCoef;
+    static cv::Mat m_cvMat_rightIntParMat;
+    static cv::Mat m_cvMat_rightImageDistCoef;
+    static float m_flt_fx, m_flt_fy, m_flt_cx, m_flt_cy, m_flt_invFx, m_flt_invFy;
     //stereo baseline multiplied by fx
     static float m_flt_baseLineTimesFx;
     //stereo baseline in meters
@@ -154,6 +156,8 @@ namespace YDORBSLAM{
     //only for the RGB-D. Stereo must be already rectified!
     //(called in the constructor).
     void undistortKeyPoints();
+    //if Stereo is not rectified
+    void undistortRightKeyPoints();
     //compute image bounds for the undistorted image (called in the constructor).
     void computeImageBounds(const cv::Mat &_imageLeft);
     //assign keypoints to the grid to speed up feature (key point) matching (called in the constructor).
