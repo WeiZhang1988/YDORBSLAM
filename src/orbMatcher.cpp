@@ -755,7 +755,7 @@ namespace YDORBSLAM{
     const std::set<std::shared_ptr<MapPoint>> setSptrFoundMapPoint = _sptrKeyFrame->getMatchedMapPointsSet();
     int i_for = 0;
     for(std::shared_ptr<MapPoint> sptrMapPoint : _vSptrMapPoints){
-      if(!sptrMapPoint->isBad() && !setSptrFoundMapPoint.count(sptrMapPoint)){
+      if(sptrMapPoint && !sptrMapPoint->isBad() && !setSptrFoundMapPoint.count(sptrMapPoint)){
         cv::Mat mapPointPosInWorld        = sptrMapPoint->getPosInWorld();
         cv::Mat mapPointPosInCamera       = simRotation_c2w * mapPointPosInWorld + simTranslation_c2w;
         const float mapPointXcordInCamera = mapPointPosInCamera.at<float>(0);
