@@ -421,7 +421,7 @@ namespace YDORBSLAM
             continue;
           }
           //rescale coordinate
-          float bestRightX = m_v_scaleFactors[keyPoint.octave]*((float)rightScaledX+(float)rightDelta);
+          float bestRightX = m_v_scaleFactors[keyPoint.octave]*((float)rightScaledX+(float)rightDelta+(float)bestRightCol);
           float disparity = keyPoint.pt.x - bestRightX;
           if(disparity>=minD && disparity<maxD){
             if(disparity<=0){
