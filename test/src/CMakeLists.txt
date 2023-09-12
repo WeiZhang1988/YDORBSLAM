@@ -1,3 +1,6 @@
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_INSTALL_RPATH ${PROJECT_SOURCE_DIR}/../lib)
+
 find_package (OpenCV REQUIRED)
 find_package (Eigen3 3.3.9 EXACT REQUIRED NO_MODULE)
 
@@ -22,6 +25,6 @@ target_include_directories(test PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 																			 ${EIGEN3_INCLUDE_DIR}
 																			 ${OpenCV_INCLUDE_DIRS}
 																			 ${PROJECT_SOURCE_DIR}/../thirdParty/DBow3/install/include
-																			 ${PROJECT_SOURCE_DIR}/../thirdParty/g2oinstall/include)
+																			 ${PROJECT_SOURCE_DIR}/../thirdParty/g2o/install/include)
 
 install(TARGETS test DESTINATION ${PROJECT_SOURCE_DIR}/exe)

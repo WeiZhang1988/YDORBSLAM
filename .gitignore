@@ -4,6 +4,7 @@ lib
 
 test/build
 test/exe
+test/data
 
 thirdParty/DBow3/build
 thirdParty/DBow3/install
