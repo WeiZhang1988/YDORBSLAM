@@ -74,6 +74,9 @@
     "core": "cpp",
     "stdvector": "cpp",
     "regex": "cpp",
-    "hash_map": "cpp"
+    "hash_map": "cpp",
+    "*.expression": "cpp",
+    "alignedvector3": "cpp",
+    "fft": "cpp"
   }
 }

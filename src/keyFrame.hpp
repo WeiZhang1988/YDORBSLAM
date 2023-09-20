@@ -89,9 +89,9 @@ namespace YDORBSLAM{
     //pose relative to parent, represented by tranformation from current camera to parent camera, computed when bad flag is activated
     cv::Mat m_cvMat_T_c2p;
     long int m_int_keyFrameID=-1;
+    static long int m_int_reservedKeyFrameID;
     //the following variables need to be accessed trough a mutex to be thread safe.
     protected:
-    static long int m_int_reservedKeyFrameID;
     std::shared_ptr<KeyFrameDatabase> m_sptr_keyFrameDatabase;
     std::map<std::shared_ptr<KeyFrame>,int> m_dic_connectedKeyFrameWeights;
     std::vector<std::shared_ptr<KeyFrame>> m_v_orderedConnectedKeyFrames;

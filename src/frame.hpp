@@ -27,16 +27,16 @@ namespace YDORBSLAM{
     //copy constructor, copy from object reference
     Frame(const Frame &_frame);
     //constructor for stereo cameras
-    Frame(const cv::Mat &_leftImage, const cv::Mat &_rightImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const cv::Mat &_rightCamIntParMat, const cv::Mat &_rightImageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrLeftExtractor, std::shared_ptr<OrbExtractor> _sptrRightExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab);
+    Frame(const cv::Mat &_leftImage, const cv::Mat &_rightImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const cv::Mat &_rightImageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrLeftExtractor, std::shared_ptr<OrbExtractor> _sptrRightExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab);
     //constructor for RGB-D cameras
     Frame(const cv::Mat &_grayImage, const cv::Mat &_depthImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab);
     //extract ORB on the image. channel flag = false means left, true means right
     void extractOrb(const cv::Mat &_image, const bool &_isRight=false);
     //pose functions#####-#####-#####-#####-#####-#####-#####-#####-#####-#####
     //set camera pose
-    void setCameraPoseByTransrom_c2w(cv::Mat _T_c2w);
+    void setCameraPoseByTransform_c2w(cv::Mat _T_c2w);
     //get camera pose
-    inline cv::Mat getCameraPoseByTransrom_c2w(){
+    inline cv::Mat getCameraPoseByTransform_c2w(){
       std::unique_lock<std::mutex> lock(m_mutex_pose);
       return m_cvMat_T_c2w.clone();
     }
@@ -103,7 +103,6 @@ namespace YDORBSLAM{
     //calibration information
     static cv::Mat m_cvMat_intParMat;
     static cv::Mat m_cvMat_imageDistCoef;
-    static cv::Mat m_cvMat_rightIntParMat;
     static cv::Mat m_cvMat_rightImageDistCoef;
     static float m_flt_fx, m_flt_fy, m_flt_cx, m_flt_cy, m_flt_invFx, m_flt_invFy;
     //stereo baseline multiplied by fx
@@ -151,19 +150,19 @@ namespace YDORBSLAM{
     static float m_flt_minX, m_flt_maxX, m_flt_minY, m_flt_maxY;
     static bool m_b_isComputeInit;
     long int m_int_ID=-1;
+    static long int m_int_reservedID;
     protected:
     //undistort key points given OpenCV distortion parameters.
     //only for the RGB-D. Stereo must be already rectified!
     //(called in the constructor).
-    void undistortKeyPoints();
+    void undistortKeyPoints(std::vector<cv::KeyPoint> &_v_keyPoints, const cv::Mat &_cvMat_intParMat, const cv::Mat &_cvMat_imageDistCoef, const cv::Mat &_cvMat_P = cv::Mat());
     //if Stereo is not rectified
-    void undistortRightKeyPoints();
+    void rectifyStereo();
     //compute image bounds for the undistorted image (called in the constructor).
     void computeImageBounds(const cv::Mat &_imageLeft);
     //assign keypoints to the grid to speed up feature (key point) matching (called in the constructor).
     void assignKeyPointsToGrid();
     // The following variables need to be accessed trough a mutex to be thread safe.
-    static long int m_int_reservedID;
     //transform from world to camera
     cv::Mat m_cvMat_T_w2c;
     //rotation matrix

@@ -22,7 +22,7 @@ namespace YDORBSLAM{
     for(const std::shared_ptr<KeyFrame> &sptrKeyFrame : _vSptrKeyFrames){
       if(!sptrKeyFrame->isBad()){
         g2o::VertexSE3Expmap *vertexSE3 = new g2o::VertexSE3Expmap();
-        vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(sptrKeyFrame->getCameraPoseByTransrom_c2w()));
+        vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(sptrKeyFrame->getCameraPoseByTransform_c2w()));
         vertexSE3->setId(sptrKeyFrame->m_int_keyFrameID);
         vertexSE3->setFixed(sptrKeyFrame->m_int_keyFrameID==0);
         optimizer.addVertex(vertexSE3);
@@ -110,7 +110,7 @@ namespace YDORBSLAM{
       if(!sptrKeyFrame->isBad()){
         g2o::VertexSE3Expmap *vertexSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(sptrKeyFrame->m_int_keyFrameID));
         if(_loopKeyFrameID==0){
-          sptrKeyFrame->setCameraPoseByTransrom_c2w(Converter::transform_SE3_cvMat(vertexSE3->estimate()));
+          sptrKeyFrame->setCameraPoseByTransform_c2w(Converter::transform_SE3_cvMat(vertexSE3->estimate()));
         }else{
           sptrKeyFrame->m_cvMat_T_c2w_GBA.create(4,4,CV_32F);
           Converter::transform_SE3_cvMat(vertexSE3->estimate()).copyTo(sptrKeyFrame->m_cvMat_T_c2w_GBA);
@@ -186,7 +186,7 @@ namespace YDORBSLAM{
     for(const std::shared_ptr<KeyFrame> &sptrKeyFrame : localKeyFrameList){
       if(!sptrKeyFrame->isBad()){
         g2o::VertexSE3Expmap *vertexSE3 = new g2o::VertexSE3Expmap();
-        vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(sptrKeyFrame->getCameraPoseByTransrom_c2w()));
+        vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(sptrKeyFrame->getCameraPoseByTransform_c2w()));
         vertexSE3->setId(sptrKeyFrame->m_int_keyFrameID);
         vertexSE3->setFixed(sptrKeyFrame->m_int_keyFrameID==0);
         optimizer.addVertex(vertexSE3);
@@ -198,7 +198,7 @@ namespace YDORBSLAM{
     //set fixed key frame vertices
     for(const std::shared_ptr<KeyFrame> &sptrKeyFrame : fixedKeyFrameList){
       g2o::VertexSE3Expmap *vertexSE3 = new g2o::VertexSE3Expmap();
-      vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(sptrKeyFrame->getCameraPoseByTransrom_c2w()));
+      vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(sptrKeyFrame->getCameraPoseByTransform_c2w()));
       vertexSE3->setId(sptrKeyFrame->m_int_keyFrameID);
       vertexSE3->setFixed(true);
       optimizer.addVertex(vertexSE3);
@@ -341,7 +341,7 @@ namespace YDORBSLAM{
     //recover optimized key frames data
     for(const std::shared_ptr<KeyFrame> &sptrKeyFrame : localKeyFrameList){
       g2o::VertexSE3Expmap *vertexSE3 = static_cast<g2o::VertexSE3Expmap *>(optimizer.vertex(sptrKeyFrame->m_int_keyFrameID));
-      sptrKeyFrame->setCameraPoseByTransrom_c2w(Converter::transform_SE3_cvMat(vertexSE3->estimate()));
+      sptrKeyFrame->setCameraPoseByTransform_c2w(Converter::transform_SE3_cvMat(vertexSE3->estimate()));
     }
     //recover optimized map points data
     for(const std::shared_ptr<MapPoint> &sptrMapPoint : localMapPointList){
@@ -355,7 +355,7 @@ namespace YDORBSLAM{
     const std::vector<std::shared_ptr<MapPoint>> vSptrMapPoints = _sptrMap->getAllMapPoints();
     bundleAdjust(vSptrKeyFrames,vSptrMapPoints,_iterNum,_bIsStopping,_loopKeyFrameID,_bIsRobust);
   }
-  int Optimizer::optimizePose(std::shared_ptr<Frame> _sptrFrame){
+  int Optimizer::optimizePose(Frame &_frame){
     g2o::SparseOptimizer optimizer;
     optimizer.setVerbose(false);
     typedef g2o::BlockSolver_6_3 BlockSolverType;
@@ -365,35 +365,35 @@ namespace YDORBSLAM{
     int initialCorrespondenceNum = 0;
     //set frame vertex
     g2o::VertexSE3Expmap *vertexSE3 = new g2o::VertexSE3Expmap();
-    vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(_sptrFrame->getCameraPoseByTransrom_c2w()));
+    vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(_frame.getCameraPoseByTransform_c2w()));
     vertexSE3->setId(0);
     vertexSE3->setFixed(false);
     optimizer.addVertex(vertexSE3);
     //set map points vertices
     std::vector<g2o::EdgeSE3ProjectXYZOnlyPose *> vMonoEdges;
     std::vector<int> vMonoEdgeIndices;
-    vMonoEdges.reserve(_sptrFrame->m_int_keyPointsNum);
-    vMonoEdgeIndices.reserve(_sptrFrame->m_int_keyPointsNum);
+    vMonoEdges.reserve(_frame.m_int_keyPointsNum);
+    vMonoEdgeIndices.reserve(_frame.m_int_keyPointsNum);
     std::vector<g2o::EdgeStereoSE3ProjectXYZOnlyPose *> vStereoEdges;
     std::vector<int> vStereoEdgeIndices;
-    vStereoEdges.reserve(_sptrFrame->m_int_keyPointsNum);
-    vStereoEdgeIndices.reserve(_sptrFrame->m_int_keyPointsNum);
+    vStereoEdges.reserve(_frame.m_int_keyPointsNum);
+    vStereoEdgeIndices.reserve(_frame.m_int_keyPointsNum);
     const float monoDelta = sqrt(5.991);
     const float stereoDelta = sqrt(7.815);
     {
       std::unique_lock<std::mutex> lock(MapPoint::m_mutex_global);
-      for(int i=0;i<_sptrFrame->m_int_keyPointsNum;i++){
-        const cv::KeyPoint &keyPoint = _sptrFrame->m_v_keyPoints[i];
-        if(_sptrFrame->m_v_sptrMapPoints[i]){
+      for(int i=0;i<_frame.m_int_keyPointsNum;i++){
+        const cv::KeyPoint &keyPoint = _frame.m_v_keyPoints[i];
+        if(_frame.m_v_sptrMapPoints[i]){
           initialCorrespondenceNum++;
-          _sptrFrame->m_v_isOutliers[i] = false;
-          if(_sptrFrame->m_v_rightXcords[i]<0){
+          _frame.m_v_isOutliers[i] = false;
+          if(_frame.m_v_rightXcords[i]<0){
             Eigen::Matrix<double,2,1> measure;
             measure<<keyPoint.pt.x, keyPoint.pt.y;
             g2o::EdgeSE3ProjectXYZOnlyPose *edge = new g2o::EdgeSE3ProjectXYZOnlyPose();
             edge->setVertex(0,dynamic_cast<g2o::OptimizableGraph::Vertex *>(optimizer.vertex(0)));
             edge->setMeasurement(measure);
-            const float &invScaleFactorSquares =_sptrFrame->m_v_invScaleFactorSquares[keyPoint.octave];
+            const float &invScaleFactorSquares =_frame.m_v_invScaleFactorSquares[keyPoint.octave];
             edge->setInformation(Eigen::Matrix2d::Identity()*invScaleFactorSquares);
             g2o::RobustKernelHuber *robustKernel = new g2o::RobustKernelHuber();
             robustKernel->setDelta(monoDelta);
@@ -402,7 +402,7 @@ namespace YDORBSLAM{
             edge->fy = Frame::m_flt_fy;
             edge->cx = Frame::m_flt_cx;
             edge->cy = Frame::m_flt_cy;
-            cv::Mat Xw = _sptrFrame->m_v_sptrMapPoints[i]->getPosInWorld();
+            cv::Mat Xw = _frame.m_v_sptrMapPoints[i]->getPosInWorld();
             edge->Xw[0] = Xw.at<float>(0);
             edge->Xw[1] = Xw.at<float>(1);
             edge->Xw[2] = Xw.at<float>(2);
@@ -411,11 +411,11 @@ namespace YDORBSLAM{
             vMonoEdgeIndices.push_back(i);
           }else{
             Eigen::Matrix<double,3,1> measure;
-            measure<<keyPoint.pt.x, keyPoint.pt.y, _sptrFrame->m_v_rightXcords[i];
+            measure<<keyPoint.pt.x, keyPoint.pt.y, _frame.m_v_rightXcords[i];
             g2o::EdgeStereoSE3ProjectXYZOnlyPose *edge = new g2o::EdgeStereoSE3ProjectXYZOnlyPose();
             edge->setVertex(0,dynamic_cast<g2o::OptimizableGraph::Vertex *>(optimizer.vertex(0)));
             edge->setMeasurement(measure);
-            const float &invScaleFactorSquares =_sptrFrame->m_v_invScaleFactorSquares[keyPoint.octave];
+            const float &invScaleFactorSquares =_frame.m_v_invScaleFactorSquares[keyPoint.octave];
             edge->setInformation(Eigen::Matrix3d::Identity()*invScaleFactorSquares);
             g2o::RobustKernelHuber *robustKernel = new g2o::RobustKernelHuber();
             robustKernel->setDelta(stereoDelta);
@@ -425,7 +425,7 @@ namespace YDORBSLAM{
             edge->cx = Frame::m_flt_cx;
             edge->cy = Frame::m_flt_cy;
             edge->bf = Frame::m_flt_baseLineTimesFx;
-            cv::Mat Xw = _sptrFrame->m_v_sptrMapPoints[i]->getPosInWorld();
+            cv::Mat Xw = _frame.m_v_sptrMapPoints[i]->getPosInWorld();
             edge->Xw[0] = Xw.at<float>(0);
             edge->Xw[1] = Xw.at<float>(1);
             edge->Xw[2] = Xw.at<float>(2);
@@ -448,23 +448,23 @@ namespace YDORBSLAM{
     const std::vector<int> iterNums(episodeNum,10);
     int badNum=0;
     for(int epi=0;epi<episodeNum;epi++){
-      vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(_sptrFrame->getCameraPoseByTransrom_c2w()));
+      vertexSE3->setEstimate(Converter::transform_cvMat_SE3Quat(_frame.getCameraPoseByTransform_c2w()));
       optimizer.initializeOptimization(0);
       optimizer.optimize(iterNums[epi]);
       badNum=0;
       for(int i=0;i<vMonoEdges.size();i++){
         g2o::EdgeSE3ProjectXYZOnlyPose *edge = vMonoEdges[i];
         const int idx = vMonoEdgeIndices[i];
-        if(_sptrFrame->m_v_isOutliers[idx]){
+        if(_frame.m_v_isOutliers[idx]){
           edge->computeError();
         }
         const float chi2 = edge->chi2();
         if(chi2>monoChi2[epi]){
-          _sptrFrame->m_v_isOutliers[idx] = true;
+          _frame.m_v_isOutliers[idx] = true;
           edge->setLevel(1);
           badNum++;
         }else{
-          _sptrFrame->m_v_isOutliers[idx] = false;
+          _frame.m_v_isOutliers[idx] = false;
           edge->setLevel(0);
         }
         if(epi==2){
@@ -474,17 +474,17 @@ namespace YDORBSLAM{
       for(int i=0;i<vStereoEdges.size();i++){
         g2o::EdgeStereoSE3ProjectXYZOnlyPose *edge = vStereoEdges[i];
         const int idx = vStereoEdgeIndices[i];
-        if(_sptrFrame->m_v_isOutliers[idx]){
+        if(_frame.m_v_isOutliers[idx]){
           edge->computeError();
         }
         const float chi2 = edge->chi2();
         if(chi2>stereoChi2[epi]){
-          _sptrFrame->m_v_isOutliers[idx]=true;
+          _frame.m_v_isOutliers[idx]=true;
           edge->setLevel(1);
           badNum++;
         }else {
           edge->setLevel(0);
-          _sptrFrame->m_v_isOutliers[idx]=false;
+          _frame.m_v_isOutliers[idx]=false;
         }
         if(epi==2){
           edge->setRobustKernel(0);
@@ -496,7 +496,7 @@ namespace YDORBSLAM{
     }
     //recover optimized pose and return number of inliers
     g2o::VertexSE3Expmap *recoveredVertexSE3 = static_cast<g2o::VertexSE3Expmap *>(optimizer.vertex(0));
-    _sptrFrame->setCameraPoseByTransrom_c2w(Converter::transform_SE3_cvMat(recoveredVertexSE3->estimate()));
+    _frame.setCameraPoseByTransform_c2w(Converter::transform_SE3_cvMat(recoveredVertexSE3->estimate()));
     return initialCorrespondenceNum - badNum;
   }
   void Optimizer::optimizeEssentialGraph(std::shared_ptr<Map> _sptrMap, std::shared_ptr<KeyFrame> _sptrLoopKeyFrame, std::shared_ptr<KeyFrame> _sptrCurrentKeyFrame, const LoopClosing::KeyFrameAndPose &_inCorrectedSim3, const LoopClosing::KeyFrameAndPose &_correctedSim3, const std::map<std::shared_ptr<KeyFrame>,std::set<std::shared_ptr<KeyFrame>>> &_loopConnections, const bool &_bIsScaleFixed){
@@ -639,7 +639,7 @@ namespace YDORBSLAM{
       Eigen::Matrix3d eigen_rotation_c2w = correctedSim3_c2w.rotation().toRotationMatrix();
       Eigen::Vector3d eigen_translation_c2w =correctedSim3_c2w.translation();
       double scale_c2w = correctedSim3_c2w.scale();
-      sptrKeyFrame->setCameraPoseByTransrom_c2w(Converter::transform_eigen_cvMat(eigen_rotation_c2w,eigen_translation_c2w / scale_c2w));
+      sptrKeyFrame->setCameraPoseByTransform_c2w(Converter::transform_eigen_cvMat(eigen_rotation_c2w,eigen_translation_c2w / scale_c2w));
     }
     //correct points. transform to "non-optimized" reference key frame pose and transform back with optimized pose
     for(const std::shared_ptr<MapPoint> &sptrMapPoint : vSptrMapPoints){

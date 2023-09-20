@@ -81,8 +81,8 @@ namespace YDORBSLAM{
     void addObservation(std::shared_ptr<KeyFrame> _sptrKeyFrame,const int &_idx);
     void eraseObservation(std::shared_ptr<KeyFrame> _sptrKeyFrame);
     void beReplacedBy(std::shared_ptr<MapPoint> _sptrMapPoint);
-    void increaseVisible(const int &_num);
-    void increaseFound(const int &_num);
+    void increaseVisible(const int &_num = 1);
+    void increaseFound(const int &_num = 1);
     void computeDistinctiveDescriptors();
     void updateNormalAndDepth();
     int predictScaleLevel(const float &_currentDist, std::shared_ptr<KeyFrame> _sptrKeyFrame);

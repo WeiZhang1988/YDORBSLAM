@@ -32,7 +32,7 @@ namespace YDORBSLAM{
     static void bundleAdjust(const std::vector<std::shared_ptr<KeyFrame>> &_vSptrKeyFrames, const std::vector<std::shared_ptr<MapPoint>> &_vSptrMapPoints, const int _iterNum = 5, bool &_bIsStopping = *(bool*)(nullptr), const long int _loopKeyFrameID = 0, const bool _bIsRobust = true);
     static void localBundleAdjust(std::shared_ptr<KeyFrame> _sptrKeyFrame, std::shared_ptr<Map> _sptrMap, bool &_bIsStopping = *(bool*)(nullptr));
     static void globalBundleAdjust(std::shared_ptr<Map> _sptrMap, const int _iterNum = 5, bool &_bIsStopping = *(bool*)(nullptr), const long int _loopKeyFrameID = 0, const bool _bIsRobust = true);
-    static int optimizePose(std::shared_ptr<Frame> _sptrFrame);
+    static int optimizePose(Frame &_frame);
     //if bIsScaleFixed is true, execute 6DoF optimization (for stereo and rgbd), otherwise 7DoF optimization (for mono)
     static void optimizeEssentialGraph(std::shared_ptr<Map> _sptrMap, std::shared_ptr<KeyFrame> _sptrLoopKeyFrame, std::shared_ptr<KeyFrame> _sptrCurrentKeyFrame, const LoopClosing::KeyFrameAndPose &_nonCorrectedSim3, const LoopClosing::KeyFrameAndPose &_correctedSim3, const std::map<std::shared_ptr<KeyFrame>,std::set<std::shared_ptr<KeyFrame>>> &_loopConnections, const bool &_bIsScaleFixed);
     //if bIsScaleFixed is true, optimize SE3 (for stereo and rgbd), otherwise Sim3 (for mono)

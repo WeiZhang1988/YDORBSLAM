@@ -790,10 +790,8 @@ namespace YDORBSLAM{
           if(bestDist<=m_int_lowThd){
             std::shared_ptr<MapPoint> sptrMapPointInKeyFrame = _sptrKeyFrame->getMapPoint(bestIdx);
             if(sptrMapPointInKeyFrame){
-              if(!sptrMapPointInKeyFrame->isBad()&&sptrMapPointInKeyFrame->getObservationsNum()>sptrMapPoint->getObservationsNum()){
+              if(!sptrMapPointInKeyFrame->isBad()){
                 sptrMapPoint->beReplacedBy(sptrMapPointInKeyFrame);
-              }else if(!sptrMapPointInKeyFrame->isBad()&&sptrMapPointInKeyFrame->getObservationsNum()<=sptrMapPoint->getObservationsNum()){
-                _vSptrReplacement[i_for]=sptrMapPointInKeyFrame;
               }
             }else {
               sptrMapPoint->addObservation(_sptrKeyFrame,bestIdx);
