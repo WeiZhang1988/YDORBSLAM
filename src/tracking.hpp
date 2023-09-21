@@ -18,8 +18,9 @@
 #include "orbExtractor.hpp"
 #include "system.hpp"
 #include "Viewer.h"
-#include "FrameDrawer.h"
+#include "frameDrawer.h"
 #include "MapDrawer.h"
+#include "stack_compatible_enable_shared_from_this.hpp"
 #include <string>
 #include <vector>
 #include <list>
@@ -36,15 +37,16 @@ namespace YDORBSLAM{
   class Tracking{
     public:
     Tracking(std::shared_ptr<System> _sptrSys, std::shared_ptr<DBoW3::Vocabulary> _sptrVoc, std::shared_ptr<FrameDrawer> _sptrFrameDrawer, std::shared_ptr<MapDrawer> _sptrMapDrawer, std::shared_ptr<Map> _sptrMap, \
-    std::shared_ptr<KeyFrameDatabase> _sptrKeyFrameDatabase, const int _sensor, const string &_strSettingPath);
+    std::shared_ptr<KeyFrameDatabase> _sptrKeyFrameDatabase, const System::Sensor &_sensor, const string &_strSettingPath);
     //preprocess the input and call track(), extract key points and perform stereo matching.
     cv::Mat grabImageStereo(const cv::Mat &_leftImageRect, const cv::Mat &_rightImageRect, const double &_timestamp);
-    cv::Mat grabImageRGBD(const cv::Mat &_imageRGB, const cv::Mat &_imageDepth, const double &_timestamp);
+    cv::Mat grabImageRGBD(const cv::Mat &_rgbImage, const cv::Mat &_depthImage, const double &_timestamp);
     void setLocalMapper(std::shared_ptr<LocalMapping> _sptrLocalMapper);
     void setLoopClosing(std::shared_ptr<LoopClosing> _sptrLoopClosing);
     void setViewer(std::shared_ptr<Viewer> _sptrViewer);
-    void changeCalibration(const std::string &_strSettingPath);
+    void changeIntParMat(const std::string &_strSettingPath);
     void informOnlyTracking(const bool &_flag);
+    void reset();
     enum class TrackingState{
       SYSTEM_NOT_READY,
       NO_IMAGE_YET,
@@ -54,7 +56,7 @@ namespace YDORBSLAM{
     };
     TrackingState m_ts_state = TrackingState::NO_IMAGE_YET;
     TrackingState m_ts_lastProcessedState;
-    int m_int_sensor;
+    System::Sensor m_sys_sensor;
     Frame m_frame_currentFrame;
     cv::Mat m_cvMat_grayImage;
     //lists to recover the full camera trajectory at the end of execution
@@ -62,10 +64,9 @@ namespace YDORBSLAM{
     std::list<cv::Mat> m_list_relativeFramePoses;
     std::list<std::shared_ptr<KeyFrame>> m_list_referenceKeyFrames;
     std::list<double> m_list_frameTimes;
-    std::list<bool> m_list_lost;
+    std::list<bool> m_list_isLost;
     //true if local mapping is deactivated and only localization is performed
     bool m_b_isTrackingOnly = false;
-    void reset();
     protected:
     //main tracking function and it is independent of the input sensor
     void track();
@@ -99,7 +100,7 @@ namespace YDORBSLAM{
     std::shared_ptr<DBoW3::Vocabulary> m_sptr_orbVocabulary;
     std::shared_ptr<KeyFrameDatabase> m_sptr_keyFrameDataBase;
     //local map
-    std::shared_ptr<KeyFrame> m_sptr_referenceKeyFrame;
+    std::shared_ptr<KeyFrame> m_sptr_refKeyFrame;
     std::vector<std::shared_ptr<KeyFrame>> m_v_localKeyFrames;
     std::vector<std::shared_ptr<MapPoint>> m_v_localMapPoints;
     //system
@@ -111,12 +112,12 @@ namespace YDORBSLAM{
     //map
     std::shared_ptr<Map> m_sptr_map;
     //calibration matrix
-    cv::Mat m_cvMat_leftCamIntParMat, m_cvMat_rightCamIntParMat;
-    cv::Mat m_cvMat_leftImageDistCoef, m_cvMat_rightImageDistCoef;
+    cv::Mat m_cvMat_intParMat = cv::Mat::eye(3,3,CV_32F);;
+    cv::Mat m_cvMat_leftImageDistCoef(5,1,CV_32F), m_cvMat_rightImageDistCoef(5,1,CV_32F);
     float m_flt_baseLineTimesFx;
     //new key frame rules according to fps
-    int m_int_minFramesNum;
-    int m_int_maxFramesNum;
+    int m_int_minFramesNum = 0;
+    int m_int_maxFramesNum = 30;
     //threshold for close/far point
     //points seen as close by the stereo/rgbd sensor are considered reliable
     //and inserted from just one frame.
@@ -136,7 +137,7 @@ namespace YDORBSLAM{
     //color order (true rgb, false bgr, ignored if grayscale)
     bool m_b_isRGB;
     //temporal points
-    std::list<std::shared_ptr<MapPoint>> m_list_temperalPoints;
+    std::list<std::shared_ptr<MapPoint>> m_list_tempMapPoints;
   };
 
 }//namespace YDORBSLAM
