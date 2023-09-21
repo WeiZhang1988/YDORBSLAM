@@ -167,8 +167,8 @@ namespace YDORBSLAM{
     KeyFrame::m_int_reservedKeyFrameID = 0;
     Frame::m_int_reservedID = 0;
     m_ts_state = TrackingState::NO_IMAGE_YET;
-    m_list_relativeFramePoses.clear();
-    m_list_referenceKeyFrames.clear();
+    m_list_relFramePoses.clear();
+    m_list_refKeyFrames.clear();
     m_list_frameTimes.clear();
     m_list_isLost.clear();
     if(m_sptr_viewer){
@@ -275,20 +275,327 @@ namespace YDORBSLAM{
         }
         m_sptr_mapDrawer->setCurrentCameraPose(m_frame_currentFrame.m_cvMat_T_c2w);
         //clean current matched map points
-        int i_for = 0;
-        for(std::shared_ptr<MapPoint> &sptrMapPoint : m_frame_currentFrame.m_v_sptrMapPoints){
-          if(sptrMapPoint && sptrMapPoint->getObservationsNum() < 1){
-            m_currentFrame.m_v_isOutliers[i_for] = false;
-            sptrMapPoint = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+        for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
+          if(m_frame_currentFrame.m_v_sptrMapPoints[i] && m_frame_currentFrame.m_v_sptrMapPoints[i]->getObservationsNum()<1){
+            m_currentFrame.m_v_isOutliers[i] = false;
+            m_frame_currentFrame.m_v_sptrMapPoints[i] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
           }
-          i_for++;
         }
-        // Delete temporal MapPoints
+        //delete temporal map points, the for loop may not be needed.
         for(std::shared_ptr<MapPoint> &tempMapPoint : m_list_tempMapPoints){
-          sptrMapPoint = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+          sptrMapPoint.reset();
         }
         m_list_tempMapPoints.clear();
+        //check whether need to insert a new key frame
+        if(needNewKeyFrame()){
+          createNewKeyFrame();
+        }
+        //the outliers by the Huber function can pass to the new key frame, so that bundle adjustment will decide if they are real outliers
+        //next frame does not need to estimate the position of outliers so they are discarded in the frame
+        for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
+          if(m_frame_currentFrame.m_v_sptrMapPoints[i] && m_frame_currentFrame.m_v_isOutliers[i]){
+            m_frame_currentFrame.m_v_sptrMapPoints[i] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+          }
+        }
+      }
+      //reset if the camera get lost soon after initialization
+      if(m_ts_state == TrackingState::LOST && m_sptr_map->getKeyFramesNum()<=5){
+        std::cout<< "Track lost soon after initialisation, reseting..." << std::endl;
+        m_sptr_system->reset();
+        return;
+      }
+      if(!m_frame_currentFrame.m_sptr_refKeyFrame){
+        m_frame_currentFrame.m_sptr_refKeyFrame = m_sptr_refKeyFrame;
+      }
+      m_frame_lastFrame = Frame(m_frame_currentFrame);
+    }
+    //store frame pose information to retrieve the complete camera trajectory afterwards
+    if(!m_frame_currentFrame.m_cvMat_T_c2w.empty()){
+      cv::Mat T_crr2ref = m_frame_currentFrame.m_cvMat_T_c2w * m_frame_currentFrame.m_sptr_refKeyFrame->getInverseCameraPoseByTransform_w2c();
+      m_list_relFramePoses.push_back(T_crr2ref);
+      m_list_refKeyFrames.push_back(m_sptr_refKeyFrame);
+      m_list_frameTimes.push_back(m_frame_currentFrame.m_d_timeStamp);
+      m_list_isLost.push_back(m_ts_state == TrackingState::LOST)
+    }else{
+      //this happens when tracking is lost
+      m_list_relFramePoses.push_back(m_list_relFramePoses.back());
+      m_list_refKeyFrames.push_back(m_list_refKeyFrames.back());
+      m_list_frameTimes.push_back(m_list_frameTimes.back());
+      m_list_isLost.push_back(m_ts_state == TrackingState::LOST)
+    }
+  }
+  void Tracking::initializeStereo(){
+    if(m_frame_currentFrame.m_int_keyPointsNum > 500){
+      //set frame pose as the origin
+      m_frame_currentFrame.setCameraPoseByTransform_c2w(cv::Mat::eye(4,4,CV_32F));
+      //create key frame
+      std::shared_ptr<KeyFrame> sptrInitKeyFrame = std::make_shared<KeyFrame>(m_frame_currentFrame,m_sptr_map,m_sptr_keyFrameDataBase);
+      //insert key frame in the map
+      m_sptr_map->addKeyFrame(sptrInitKeyFrame);
+      //create map points and associate to key frame
+      for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
+        if(m_frame_currentFrame.m_v_depth[i]>0){
+          std::shared_ptr<MapPoint> sptrNewMapPoint = std::make_shared<MapPoint>(m_frame_currentFrame.inverseProject(i),m_sptr_map,sptrInitKeyFrame);
+          sptrNewMapPoint->addObservation(sptrInitKeyFrame,i);
+          sptrInitKeyFrame->addMapPoint(sptrNewMapPoint,i);
+          sptrNewMapPoint->computeDistinctiveDescriptors();
+          sptrNewMapPoint->updateNormalAndDepth();
+          m_sptr_map->addMapPoint(sptrNewMapPoint);
+          m_frame_currentFrame.m_v_sptrMapPoints[i] = sptrNewMapPoint;
+        }
+      }
+      std::cout << "New map created with " << m_sptr_map->getMapPointsNum() << " points" << std::endl;
+      m_sptr_localMapper->insertKeyFrame(sptrInitKeyFrame);
+      m_frame_lastFrame = Frame(m_frame_currentFrame);
+      m_int_lastKeyFrameID = m_frame_currentFrame.m_int_ID;
+      m_sptr_lastKeyFrame = sptrInitKeyFrame;
+      m_v_localKeyFrames.push_back(sptrInitKeyFrame);
+      m_v_localMapPoints = m_sptr_map->getAllMapPoints();
+      m_sptr_refKeyFrame = sptrInitKeyFrame;
+      m_sptr_map->setReferenceMapPoints(m_v_localMapPoints);
+      m_sptr_map->m_v_sptrOriginalKeyFrames.push_back(sptrInitKeyFrame);
+      m_sptr_mapDrawer->setCurrentCameraPose(m_frame_currentFrame.m_cvMat_T_c2w);
+      m_ts_state = TrackingState::OK;
+    }
+  }
+  void Tracking::checkReplacementInLastFrame(){
+    for(std::shared_ptr<MapPoint> &sptrMapPoint : m_frame_lastFrame.m_v_sptrMapPoints){
+      if(sptrMapPoint && sptrMapPoint->getReplacement()){
+        sptrMapPoint = sptrMapPoint->getReplacement();
       }
     }
+  }
+  bool Tracking::trackReferenceKeyFrame(){
+    //compute bag of words vector
+    m_frame_currentFrame.computeBoW();
+    //firstly, orb matching with reference key frame
+    //if enough matches are found, PnP solver will be setup
+    OrbMatcher matcher(0.7,true);
+    std::vector<std::shared_ptr<MapPoint>> vSptrMatchedMapPoint;
+    int refKeyFrame2currKeyFrameMatchNum = matcher.searchByBowInKeyFrameAndFrame(m_sptr_refKeyFrame,m_frame_currentFrame,vSptrMatchedMapPoint);
+    if(refKeyFrame2currKeyFrameMatchNum>=15){
+      m_frame_currentFrame.m_v_sptrMapPoints = vSptrMatchedMapPoint;
+      m_frame_currentFrame.setCameraPoseByTransform_c2w(m_frame_lastFrame.m_cvMat_T_c2w);
+      Optimizer::optimizePose(m_frame_currentFrame);
+      //discard outliers
+      int matchedMapPointsNum = 0;
+      for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
+        if(m_frame_currentFrame.m_v_sptrMapPoints[i]){
+          if(m_frame_currentFrame.m_v_isOutliers[i]){
+            m_frame_currentFrame.m_v_sptrMapPoints[i]->m_b_isTrackInView = false;
+            m_frame_currentFrame.m_v_sptrMapPoints[i]->m_int_lastSeenInFrameID = m_frame_currentFrame.m_int_ID;
+            m_frame_currentFrame.m_v_isOutliers[i] = false;
+            m_frame_currentFrame.m_v_sptrMapPoints[i] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+            refKeyFrame2currKeyFrameMatchNum--;
+          }else if(m_frame_currentFrame.m_v_sptrMapPoints[i]->getObservationsNum()>0){
+            matchedMapPointsNum++;
+          }
+        }
+      }
+      return matchedMapPointsNum>=10;
+    }else{
+      return false;
+    }
+  }
+  void Tracking::updateLastFrame(){
+    //update pose according to reference key frame
+    m_frame_lastFrame.setCameraPoseByTransform_c2w(m_list_relFramePoses.back()*m_frame_lastFrame.m_sptr_refKeyFrame->getCameraPoseByTransrom_c2w());
+    if(m_int_lastKeyFrameID==m_frame_lastFrame.m_int_ID || !m_b_isTrackingOnly || m_sys_sensor==System::Sensor::MONOCULAR){
+      return;
+    }
+    //create visual odometry map points
+    //points are sorted according to their depth from stereo/RGBD sensor
+    std::vector<std::pair<float,int>> vDepthIdx;
+    vDepthIdx.reserve(m_frame_lastFrame.m_int_keyPointsNum);
+    for(int i=0;i<m_frame_lastFrame.m_int_keyPointsNum;i++){
+      if(m_frame_lastFrame.m_v_depth[i]>0){
+        vDepthIdx.push_back(std::make_pair(m_frame_lastFrame.m_v_depth[i],i));
+      }
+    }
+    if(!vDepthIdx.empty()){
+      std::sort(vDepthIdx.begin(),vDepthIdx.end());
+      //insert all points that are closer than m_flt_depthThd
+      //if num of points that are closer than m_flt_depthThd is less than 100, 100 closest points are added
+      int pointsNum = 0;
+      for(const std::pair<float,int> &pair : vDepthIdx){
+        if(!m_frame_lastFrame.m_v_sptrMapPoints[pair.second] || m_frame_lastFrame.m_v_sptrMapPoints[pair.second]->getObservationsNum()<1){
+          std::shared_ptr<MapPoint> sptrNewMapPoint = std::make_shared<MapPoint>(m_frame_lastFrame.inverseProject(pair.second),m_sptr_map,m_frame_lastFrame,pair.second);
+          m_frame_lastFrame.m_v_sptrMapPoints[pair.second]=sptrNewMapPoint;
+          m_list_tempMapPoints.push_back(sptrNewMapPoint);
+          pointsNum++;
+        }else{
+          pointsNum++;
+        }
+        if(pair.first > m_flt_depthThd && pointsNum>100){
+          break;
+        }
+      } 
+    }
+  }
+  bool Tracking::trackWithMotionModel(){
+    OrbMatcher matcher(0.9,true);
+    //update last frame pose according to its reference key frame
+    //create visual odometry points if in localization mode
+    updateLastFrame();
+    m_frame_currentFrame.setCameraPoseByTransform_c2w(m_cvMat_velocity*m_frame_lastFrame.m_cvMat_T_c2w);
+    std::fill(m_frame_currentFrame.m_v_sptrMapPoints.begin(),m_frame_currentFrame.m_v_sptrMapPoints.end(),static_cast<std::shared_ptr<MapPoint>>(nullptr));
+    //project points seen in previous frame
+    int thd = 7;
+    if(m_sys_sensor==System::Sensor::STEREO){
+      thd = 7;
+    }else{
+      thd = 15;
+    }
+    int lastframe2currentFrameMatchNum = matcher.searchByProjectionInLastAndCurrentFrame(m_frame_currentFrame,m_frame_lastFrame,thd);
+    //if match num is few, wider window search is used
+    if(lastframe2currentFrameMatchNum<20){
+      std::fill(m_frame_currentFrame.m_v_sptrMapPoints.begin(),m_frame_currentFrame.m_v_sptrMapPoints.end(),static_cast<std::shared_ptr<MapPoint>>(nullptr));
+      lastframe2currentFrameMatchNum = matcher.searchByProjectionInLastAndCurrentFrame(m_frame_currentFrame,m_frame_lastFrame,2*thd);
+    }
+    if(lastframe2currentFrameMatchNum<20){
+      return false;
+    }
+    //optimize frame pose with all matches
+    Optimizer::optimizePose(m_frame_currentFrame);
+    //discard outliers
+    int matchedMapPointsNum = 0;
+    for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
+      if(m_frame_currentFrame.m_v_sptrMapPoints[i]){
+        if(m_frame_currentFrame.m_v_isOutliers[i]){
+          m_frame_currentFrame.m_v_sptrMapPoints[i]->m_b_isTrackInView = false;
+          m_frame_currentFrame.m_v_sptrMapPoints[i]->m_int_lastSeenInFrameID = m_frame_currentFrame.m_int_ID;
+          m_frame_currentFrame.m_v_isOutliers[i] = false;
+          m_frame_currentFrame.m_v_sptrMapPoints[i] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+          lastframe2currentFrameMatchNum--;
+        }else if(m_frame_currentFrame.m_v_sptrMapPoints[i]->getObservationsNum()>0){
+          matchedMapPointsNum++;
+        }
+      }
+    }
+    if(m_b_isTrackingOnly){
+      m_b_isDoingVisualOdometry = matchedMapPointsNum < 10;
+      return lastframe2currentFrameMatchNum > 20;
+    }else{
+      return matchedMapPointsNum >= 10;
+    }
+  }
+  void Tracking::updateLocalMap(){
+    //this is for visualization
+    m_sptr_map->setReferenceMapPoints(m_v_localMapPoints);
+    //update
+    updateLocalKeyFrames();
+    updateLocalPoints();
+  }
+  void Tracking::updateLocalPoints(){
+    m_v_localMapPoints.clear();
+    for(const std::shared_prt<KeyFrame> &sptrKeyFrame : m_v_localKeyFrames){
+      for(const std::shared_prt<MapPoint> &sptrMapPoint : sptrKeyFrame->getMatchedMapPointsVec()){
+        if(sptrMapPoint && sptrMapPoint->m_int_trackRefForFrameID!=m_frame_currentFrame.m_int_ID && !sptrMapPoint->isBad()){
+          m_v_localMapPoints.push_back(sptrMapPoint);
+          sptrMapPoint->m_int_trackRefForFrameID = m_frame_currentFrame.m_int_ID;
+        }
+      }
+    }
+  }
+  void Tracking::updateLocalKeyFrames(){
+    //each map point votes for the key frame in which it is observed
+    std::map<std::shared_ptr<KeyFrame>, int> dicKeyFrameCounter;
+    for(std::shared_ptr<MapPoint> &sptrMapPoint : m_frame_currentFrame.m_v_sptrMapPoints){
+      if(sptrMapPoint){
+        if(!sptrMapPoint->isBad()){
+          for(const std::pair<const std::shared_ptr<KeyFrame>, int> &pair : sptrMapPoint->getObservations()){
+            dicKeyFrameCounter[pair.first]++;
+          }
+        }else{
+          sptrMapPoint = std::shared_ptr<MapPoint>(nullptr);
+        }
+      }
+    }
+    if(dicKeyFrameCounter.empty()){
+      return;
+    }
+    int maxObservationNum = 0;
+    std::shared_ptr<KeyFrame> mostObservationKeyFrame = static_cast<std::shared_ptr<KeyFrame>>(nullptr);
+    m_v_localKeyFrames.clear();
+    m_v_localKeyFrames.reserve(3*dicKeyFrameCounter.size());
+    //all key frames that observe a map point are included in the local map
+    //check which key frame contains most map points
+    for(const std::pair<const std::shared_ptr<KeyFrame>, int> &pair : dicKeyFrameCounter){
+      if(pair.first && !pair.first->isBad()){
+        if(pair.second > maxObservationNum){
+          maxObservationNum = pair.second;
+          mostObservationKeyFrame = pair.first;
+        }
+        m_v_localKeyFrames.push_back(pair.first);
+        pair.first->m_int_trackRefForFrameID = m_frame_currentFrame.m_int_ID;
+      }
+    }
+    //include some not-yet-included key frames that are neighbors to already-included key frames
+    for(const std::shared_prt<KeyFrame>& sptrKeyFrame : m_v_localKeyFrames){
+      //limit the number of key frames
+      if(m_v_localKeyFrames.size() > 80){
+        break;
+      }
+      for(const std::shared_prt<KeyFrame> &connectedkeyFrame : sptrKeyFrame->getOrderedConnectedKeyFramesLargerThanWeight(10)){
+        if(connectedkeyFrame && !connectedkeyFrame->isBad() && connectedkeyFrame->m_int_trackRefForFrameID!=m_frame_currentFrame.m_int_ID){
+          m_v_localKeyFrames.push_back(connectedkeyFrame);
+          connectedkeyFrame->m_int_trackRefForFrameID = m_frame_currentFrame.m_int_ID;
+          break;
+        }
+      }
+      for(const std::shared_prt<KeyFrame> &childKeyFrame : sptrKeyFrame->getChildren()){
+        if(childKeyFrame && !childKeyFrame->isBad() && childKeyFrame->m_int_trackRefForFrameID!=m_frame_currentFrame.m_int_ID){
+          m_v_localKeyFrames.push_back(childKeyFrame);
+          childKeyFrame->m_int_trackRefForFrameID = m_frame_currentFrame.m_int_ID;
+          break;
+        }
+      }
+      if(sptrKeyFrame->getParent() && sptrKeyFrame->getParent()->m_int_trackRefForFrameID!=m_frame_currentFrame.m_int_ID){
+        m_v_localKeyFrames.push_back(sptrKeyFrame->getParent());
+        sptrKeyFrame->getParent()->m_int_trackRefForFrameID=m_frame_currentFrame.m_int_ID;
+      }
+    }
+    if(mostObservationKeyFrame){
+      m_sptr_refKeyFrame = mostObservationKeyFrame;
+      m_frame_currentFrame.m_sptr_refKeyFrame = m_sptr_refKeyFrame;
+    }
+  }
+  void Tracking::searchLocalPoints(){
+    //do not search already matched map points
+    for(std::shared_ptr<MapPoint> &sptrMapPoint : m_frame_currentFrame.m_v_sptrMapPoints){
+      if(sptrMapPoint){
+        if(sptrMapPoint->isBad()){
+          sptrMapPoint = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+        }else{
+          sptrMapPoint->increaseVisible();
+          sptrMapPoint->m_int_lastSeenInFrameID = m_frame_currentFrame.m_int_ID;
+          sptrMapPoint->m_b_isTrackInView = false;
+        }
+      }
+    }
+    int matchedMapPointsNum = 0;
+    //project points in frame and check its visibility
+    for(std::shared_ptr<MapPoint> &sptrMapPoint : m_v_localMapPoints){
+      if(sptrMapPoint && sptrMapPoint->m_int_lastSeenInFrameID!=m_frame_currentFrame.m_int_ID && \
+      !sptrMapPoint->isBad() && m_frame_currentFrame.isInCameraFrustum(sptrMapPoint,0.5)){
+        sptrMapPoint->increaseVisible();
+        matchedMapPointsNum++;
+      }
+    }
+    if(matchedMapPointsNum>0){
+      OrbMatcher matcher(0.8);
+      int thd = 1;
+      if(m_sys_sensor==System::Sensor::RGBD){
+        thd = 3;
+      }
+      //if the camera is relocalized recently, perform a coarser search
+      if(m_frame_currentFrame.m_int_ID<m_int_lastRelocalizedFrameID+2){
+        thd = 5;
+      }
+      matcher.searchByProjectionInFrameAndMapPoint(m_frame_currentFrame,m_v_localMapPoints,thd);
+    }
+  }
+  bool Tracking::trackLocalMap(){
+    //stop here
   }
 }//namespace YDORBSLAM

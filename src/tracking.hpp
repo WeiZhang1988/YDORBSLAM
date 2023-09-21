@@ -61,8 +61,8 @@ namespace YDORBSLAM{
     cv::Mat m_cvMat_grayImage;
     //lists to recover the full camera trajectory at the end of execution
     //basically reference key frames are stored for each fream and its relative transformation
-    std::list<cv::Mat> m_list_relativeFramePoses;
-    std::list<std::shared_ptr<KeyFrame>> m_list_referenceKeyFrames;
+    std::list<cv::Mat> m_list_relFramePoses;
+    std::list<std::shared_ptr<KeyFrame>> m_list_refKeyFrames;
     std::list<double> m_list_frameTimes;
     std::list<bool> m_list_isLost;
     //true if local mapping is deactivated and only localization is performed
@@ -77,12 +77,12 @@ namespace YDORBSLAM{
     bool trackReferenceKeyFrame();
     void updateLastFrame();
     bool trackWithMotionModel();
-    bool relocalize();
     void updateLocalMap();
     void updateLocalPoints();
     void updateLocalKeyFrames();
-    bool trackLocalMap();
     void searchLocalPoints();
+    bool trackLocalMap();
+    bool relocalize();
     bool needNewKeyFrame();
     void createNewKeyFrame();
     //in localization only mode, this flat is true if there is no match to points in the map.
