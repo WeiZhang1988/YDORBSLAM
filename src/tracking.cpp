@@ -218,7 +218,7 @@ namespace YDORBSLAM{
                 if(m_b_isDoingVisualOdometry){
                   int i_for=0;
                   for(std::shared_ptr<MapPoint> &sptrMapPoint : m_frame_currentFrame.m_v_sptrMapPoints){
-                    if(sptrMapPoint && !m_currentFrame.m_v_isOutliers[i_for]){
+                    if(sptrMapPoint && !m_frame_currentFrame.m_v_isOutliers[i_for]){
                       sptrMapPoint->increaseFound();
                     }
                     i_for++;
@@ -277,7 +277,7 @@ namespace YDORBSLAM{
         //clean current matched map points
         for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
           if(m_frame_currentFrame.m_v_sptrMapPoints[i] && m_frame_currentFrame.m_v_sptrMapPoints[i]->getObservationsNum()<1){
-            m_currentFrame.m_v_isOutliers[i] = false;
+            m_frame_currentFrame.m_v_isOutliers[i] = false;
             m_frame_currentFrame.m_v_sptrMapPoints[i] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
           }
         }
@@ -596,6 +596,198 @@ namespace YDORBSLAM{
     }
   }
   bool Tracking::trackLocalMap(){
+    //an estimation of camera poses and some map points tracked in the frame has been achieved
+    //retrieve the local map and try to find matches to points in the map
+    updateLocalMap();
+    searchLocalPoints();
+    //optimize pose
+    Optimizer::optimizePose(m_frame_currentFrame);
+    m_int_matchInliersNum = 0;
+    //update map points statistics
+    for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
+      if(m_frame_currentFrame.m_v_sptrMapPoints[i]){
+        if(!m_frame_currentFrame.m_v_isOutliers[i]){
+          m_frame_currentFrame.m_v_sptrMapPoints[i]->increaseFound();
+          if(m_b_isTrackingOnly){
+            m_int_matchInliersNum++;
+          }else if(m_frame_currentFrame.m_v_sptrMapPoints[i]->getObservationsNum() > 0){
+            m_int_matchInliersNum++;
+          }
+        }else if(m_sys_sensor == System::Sensor::STEREO){
+          m_frame_currentFrame.m_v_sptrMapPoints[i] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+        }
+      }
+    }
+    //decide whether the tracking succeed
+    //more restrict if there was a relocalization recently
+    if(m_frame_currentFrame.m_int_ID<m_int_lastRelocalizedFrameID + m_int_maxFramesNum && m_int_matchInliersNum<50){
+      return false;
+    }else if(m_int_matchInliersNum<30){
+      return false;
+    }else{
+      return true
+    }
+  }
+  bool Tracking::relocalize(){
+    //compute bag of words vector
+    m_frame_currentFrame.computeBoW();
+    //if track is lost, query key frame database for key frame candidates to do relocalization
+    std::vector<std::shared_ptr<KeyFrame>> vSptrKeyFrameCandidates = m_sptr_keyFrameDatabase->detectRelocalizationCandidates(m_frame_currentFrame);
+    if(vSptrKeyFrameCandidates.empty()){
+      return false;
+    }
+    //firstly perform orb matching with each candidate
+    //if enough matches are found, setup PnP solver
+    OrbMatcher matcher(0.75,true);
+    std::vector<std::shared_ptr<PnPsolver>> vSptrPnPsolvers;
+    vSptrPnPsolvers.resize(vSptrKeyFrameCandidates.size());
+    std::vector<std::vector<std::shared_ptr<MapPoint>>> vvSptrMatchedMapPoints;
+    vvSptrMatchedMapPoints.resize(vSptrKeyFrameCandidates.size());
+    int finalCandidatesNum = 0;
+    for(int i=0;i<vSptrKeyFrameCandidates.size();i++){
+      if(!vSptrKeyFrameCandidates[i]->isBad()){
+        if(matcher.searchByBowInKeyFrameAndFrame(vSptrKeyFrameCandidates[i],m_frame_currentFrame,vvSptrMatchedMapPoints[i])>=15){
+          std::shared_ptr<PnPsolver> pnpSolver = std::make_shared<PnPsolver>(m_frame_currentFrame,vvSptrMatchedMapPoints[i]);
+          pnpSolver->setRansacParameters(0.99,10,300,4,0.5,5.991);
+          vsptrPnPsolvers[i] = pnpSolver;
+          finalCandidatesNum++;
+        }
+      }
+    }
+    //alternatively perform some iterations of P4P RANSAC until a camera pose supported by enough inliers is found
+    OrbMatcher matcher2(0.9,true);
+    int inliersNum = 0;
+    while(finalCandidatesNum>0 && inliersNum<50){
+      for(int i=0;i<vSptrKeyFrameCandidates.size();i++){
+        if(vSptrPnPsolvers){
+          //perform five ransac iterations
+          std::vector<bool> vIsInliers;
+          int tempInliersNum;
+          bool bIsOverIterationNum;
+          std::shared_ptr<PnPsolver> pnpSolver = vSptrPnPsolvers[i];
+          cv::Mat T_c2w = pnpSolver->iterate(5,bIsOverIterationNum,vIsInliers,tempInliersNum);
+          //if ransac reaches max, iterations discard key frame
+          if(bIsOverIterationNum){
+            vSptrPnPsolvers[i] = static_cast<std::shared_ptr<PnPsolver>>(nullptr);
+            finalCandidatesNum--;
+          }
+          //optimize a camera pose that is computed
+          if(!T_c2w.empty()){
+            T_c2w.copyTo(m_frame_currentFrame.m_cvMat_T_c2w);
+            std::set<std::shared_ptr<MapPoint>> setFoundMapPoints;
+            for(int j=0;j<vIsInliers.size();j++){
+              if(vIsInliers[j]){
+                m_frame_currentFrame.m_v_sptrMapPoints[j] = vvSptrMatchedMapPoints[i][j];
+                setFoundMapPoints.insert(vvSptrMatchedMapPoints[i][j]);
+              }else{
+                m_frame_currentFrame.m_v_sptrMapPoints[j] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+              }
+            }
+            inliersNum = Optimizer::optimizePose(m_frame_currentFrame);
+            if(inliersNum>=10){
+              for(int iout=0;iout<m_frame_currentFrame.m_int_keyPointsNum;iout++){
+                if(m_frame_currentFrame.m_v_isOutliers[iout]){
+                  m_frame_currentFrame.m_v_sptrMapPoints[iout] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+                }
+              }
+              //if too few inliers, search by projection in a coarse window and optimize again
+              if(inliersNum<50){
+                int keyFrame2currentFrameAddMatchNum = matcher2.searchByProjectionInKeyFrameAndCurrentFrame(m_frame_currentFrame,vSptrKeyFrameCandidates[i],setFoundMapPoints,10,100);
+                if(inliersNum + keyFrame2currentFrameAddMatchNum >= 50){
+                  inliersNum = Optimizer::optimizePose(m_frame_currentFrame);
+                  //if inliers but still not enough, search by projection again in a narrower window
+                  //the camera has been already optimized with many points
+                  if(inliersNum>30 && inliersNum<50){
+                    setFoundMapPoints.clear();
+                    for(std::shared_ptr<MapPoint> &sptrMapPoint : m_frame_currentFrame.m_v_sptrMapPoints){
+                      if(sptrMapPoint){
+                        setFoundMapPoints.insert(sptrMapPoint);
+                      }
+                    }
+                    keyFrame2currentFrameAddMatchNum = matcher2.searchByProjectionInKeyFrameAndCurrentFrame(m_frame_currentFrame,vSptrKeyFrameCandidates[i],setFoundMapPoints,3,64);
+                    if(inliersNum + keyFrame2currentFrameAddMatchNum >= 50){
+                      inliersNum = Optimizer::optimizePose(m_frame_currentFrame);
+                      for(int iout=0; iout<m_frame_currentFrame.m_int_keyPointsNum; iout++){
+                        if(m_frame_currentFrame.m_v_isOutliers[iout]){
+                          m_frame_currentFrame.m_v_sptrMapPoints[iout] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+                        }
+                      }
+                    }
+                  }
+                }
+              }else{
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+    if(inliersNum>=50){
+      m_int_lastRelocalizedFrameID = m_frame_currentFrame.m_int_ID;
+      return true;
+    }else{
+      return false;
+    }
+  }
+  bool Tracking::needNewKeyFrame(){
+    if(m_b_isTrackingOnly || m_sptr_localMapper->isStopped() || m_sptr_localMapper->stopRequested() || \
+    (m_frame_currentFrame.m_int_ID<m_int_lastRelocalizedFrameID+m_int_maxFramesNum && m_sptr_map->getKeyFramesNum()>m_int_maxFramesNum)){
+      return false;
+    }
+    int minObservationNum = 3;
+    float refRatioThd = 0.75f;
+    if(m_sptr_map->getKeyFramesNum()<2){
+      minObservationNum = 2;
+      refRatioThd = 0.4f;
+    }else if(m_sptr_map->getKeyFramesNum()==2){
+      minObservationNum = 2;
+    }
+    if(m_sys_sensor==System::Sensor::MONOCULAR){
+      refRatioThd = 0.9f
+    }
+    int refKeyFrameMatchNum = m_sptr_refKeyFrame->trackedMapPointsNum(minObservationNum);
+    bool isLocalMapperIdle = m_sptr_localMapper->acceptKeyFrames();
+    //check how many close points are being tracked and how many could potentially be created
+    int notTrackedClosePointsNum=0, trackedClosePointsNum=0;
+    if(m_sys_sensor!=System::Sensor::MONOCULAR){
+      for(int i=0;i<m_frame_currentFrame.keyPointsNum;i++){
+        if(m_frame_currentFrame.m_v_depth[i]>0 && m_frame_currentFrame.m_v_depth[i]<m_flt_depthThd){
+          if(m_frame_currentFrame.m_v_sptrMapPoints[i] && !m_frame_currentFrame.m_v_isOutliers[i]){
+            trackedClosePointsNum++;
+          }else{
+            notTrackedClosePointsNum++;
+          }
+        }
+      }
+    }
+    bool needToInsertClose = (trackedClosePointsNum<100) && (notTrackedClosePointsNum>70);
+    //condition 1a: more than "max frame num" have passed from last key frame insertion
+    const bool cond1a = m_frame_currentFrame.m_int_ID>=m_int_lastKeyFrameID+m_int_maxFramesNum;
+    //condition 1b: more than "min frame num" have passed and local mapping is idle
+    const bool cond1b = m_frame_currentFrame.m_int_ID>=m_int_lastKeyFrameID+m_int_minFramesNum && isLocalMapperIdle;
+    //condition 1c: tracking is weak
+    const bool cond1c = m_sys_sensor != System::Sensor::MONOCULAR && (m_int_matchInliersNum<refKeyFrameMatchNum*0.25 || needToInsertClose);
+    //condition 2:  too few tracked points compared to reference key frame, but too many visual odometry compared to map matches
+    const bool cond2  = m_int_matchInliersNum>15 && (m_int_matchInliersNum<refKeyFrameMatchNum*refRatioThd || needToInsertClose);
+    if((cond1a || cond1b || cond1c)&&cond2){
+      //if mapping accepts key frames, insert key frame
+      //otherwise, send a signal to interrupt BA
+      if(isLocalMapperIdle){
+        return true;
+      }else{
+        m_sptr_localMapper->interruptBA();
+        if(m_sys_sensor!=System::Sensor::MONOCULAR && m_sptr_localMapper->getInQueueKeyFramesNum()<3){
+          return true;
+        }else{
+          return false;
+        }
+      }
+    }else{
+      return false
+    }
+  }
+  void Tracking::createNewKeyFrame(){
     //stop here
   }
 }//namespace YDORBSLAM
