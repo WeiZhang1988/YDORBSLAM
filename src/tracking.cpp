@@ -8,7 +8,7 @@ namespace YDORBSLAM{
   Tracking::Tracking(std::shared_ptr<System> _sptrSys, std::shared_ptr<DBoW3::Vocabulary> _sptrVoc, std::shared_ptr<FrameDrawer> _sptrFrameDrawer, std::shared_ptr<MapDrawer> _sptrMapDrawer, std::shared_ptr<Map> _sptrMap, \
   std::shared_ptr<KeyFrameDatabase> _sptrKeyFrameDatabase, System::Sensor &_sensor, const string &_strSettingPath) : \
   m_sptr_system(_sptrSys), m_sptr_orbVocabulary(_sptrVoc), m_sptr_frameDrawer(_sptrFrameDrawer), m_sptr_mapDrawer(_sptrMapDrawer), m_sptr_map(_sptrMap), \
-  m_sptr_keyFrameDataBase(_sptrKeyFrameDatabase), m_sys_sensor(_sensor){
+  m_sptr_keyFrameDatabase(_sptrKeyFrameDatabase), m_sys_sensor(_sensor){
     //load camera parameters from setting file
     cv::FileStorage settingFile(_strSettingPath, cv::FileStorage::READ);
     m_cvMat_intParMat.at<float>(0,0) = settingFile["Camera.fx"];
@@ -160,7 +160,7 @@ namespace YDORBSLAM{
     m_sptr_loopClosing->requestReset();
     std::cout << " done" << std::endl;
     std::cout << "Reseting Database...";
-    m_sptr_keyFrameDataBase->clear();
+    m_sptr_keyFrameDatabase->clear();
     std::cout << " done" << std::endl;
     //clear map including map points and key frames
     m_sptr_map->clear();
@@ -329,7 +329,7 @@ namespace YDORBSLAM{
       //set frame pose as the origin
       m_frame_currentFrame.setCameraPoseByTransform_c2w(cv::Mat::eye(4,4,CV_32F));
       //create key frame
-      std::shared_ptr<KeyFrame> sptrInitKeyFrame = std::make_shared<KeyFrame>(m_frame_currentFrame,m_sptr_map,m_sptr_keyFrameDataBase);
+      std::shared_ptr<KeyFrame> sptrInitKeyFrame = std::make_shared<KeyFrame>(m_frame_currentFrame,m_sptr_map,m_sptr_keyFrameDatabase);
       //insert key frame in the map
       m_sptr_map->addKeyFrame(sptrInitKeyFrame);
       //create map points and associate to key frame
@@ -788,6 +788,51 @@ namespace YDORBSLAM{
     }
   }
   void Tracking::createNewKeyFrame(){
-    //stop here
+    if(m_sptr_localMapper->setNotStop(true)){
+      std::shared_ptr<KeyFrame> sptrNewKeyFrame = std::make_shared<KeyFrame>(m_frame_currentFrame,m_sptr_map,m_sptr_keyFrameDatabase);
+      m_sptr_refKeyFrame = sptrNewKeyFrame;
+      m_frame_currentFrame.m_sptr_refKeyFrame = m_sptr_refKeyFrame;
+      if(m_sys_sensor != System::Sensor::MONOCULAR){
+        m_frame_currentFrame.updatePoseMatrices();
+        //sort points by measured depth from stereo/RGBD sensor
+        //then create all close map points whose depth < threshold
+        //if there are less than 100 close points then the 100 closest points are created
+        std::vector<std::pair<float,int>> vDepthIndices;
+        vDepthIndices.reserve(m_frame_currentFrame.m_int_keyPointsNum)
+        for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
+          if(m_frame_currentFrame.m_v_depth[i]>0){
+            vDepthIndices.push_back(std::make_pair(m_frame_currentFrame.m_v_depth[i],i));
+          }
+        }
+        if(!vDepthIndices.empty()){
+          std::sort(vDepthIndices.begin(),vDepthIndices.end());
+          int newPointsNum = 0;
+          for(const std::pair<float,int> &depthIdx : vDepthIndices){
+            if(m_frame_currentFrame.m_v_sptrMapPoints[depthIdx.second] && m_frame_currentFrame.m_v_sptrMapPoints[depthIdx.second]->getObservationsNum()<1){
+              m_frame_currentFrame.m_v_sptrMapPoints[depthIdx.second] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
+            }
+            if(!m_frame_currentFrame.m_v_sptrMapPoints[depthIdx.second]){
+              std::shared_ptr<MapPoint> sptrNewMapPoint = std::make_shared<MapPoint>(m_frame_currentFrame.inverseProject(depthIdx.second),m_sptr_map,sptrNewKeyFrame);
+              sptrNewMapPoint->addObservation(sptrNewKeyFrame,depthIdx.second);
+              sptrNewKeyFrame->addMapPoint(sptrNewMapPoint,depthIdx.second);
+              sptrNewMapPoint->computeDistinctiveDescriptors();
+              sptrNewMapPoint->updateNormalAndDepth();
+              m_sptr_map->addMapPoint(sptrNewMapPoint);
+              m_frame_currentFrame.m_v_sptrMapPoints[depthIdx.second] = sptrNewMapPoint;
+              newPointsNum++;
+            }else{
+              newPointsNum++;
+            }
+            if(depthIdx.first>m_flt_depthThd && newPointsNum>100){
+              break;
+            }
+          }
+        }
+      }
+      m_sptr_localMapper->insertKeyFrame(sptrNewKeyFrame);
+      m_sptr_localMapper->eetNotStop(false);
+      m_int_lastKeyFrameID = m_frame_currentFrame.m_int_ID;
+      m_sptr_lastKeyFrame = sptrNewKeyFrame;
+    }
   }
 }//namespace YDORBSLAM

@@ -98,7 +98,7 @@ namespace YDORBSLAM{
     std::shared_ptr<OrbExtractor> m_sptr_initOrbExtractor;
     //Bow
     std::shared_ptr<DBoW3::Vocabulary> m_sptr_orbVocabulary;
-    std::shared_ptr<KeyFrameDatabase> m_sptr_keyFrameDataBase;
+    std::shared_ptr<KeyFrameDatabase> m_sptr_keyFrameDatabase;
     //local map
     std::shared_ptr<KeyFrame> m_sptr_refKeyFrame;
     std::vector<std::shared_ptr<KeyFrame>> m_v_localKeyFrames;
