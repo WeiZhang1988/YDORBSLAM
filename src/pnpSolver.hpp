@@ -21,7 +21,7 @@ namespace YDORBSLAM{
   class PnPsolver{
     public:
     PnPsolver(const Frame &_frame, const std::vector<std::shared_ptr<MapPoint>> &_v_matchedMapPoints);
-    void setRansacParameters(const double &_dbl_probability = 0.99, const int &_int_minInliersNum = 8, const int &_int_maxIterNum = 300, const int &_int_minSet = 4, const float &_flt_epsilon = 0.4, const float &_flt_thd = 5.991);
+    void setRansacParameters(const float &_flt_probability = 0.99, const int &_int_minInliersNum = 8, const int &_int_maxIterNum = 300, const int &_int_minSet = 4, const float &_flt_epsilon = 0.4, const float &_flt_thd = 5.991);
     cv::Mat find(std::vector<bool> &_v_isInliers, int &_int_inliersNum);
     cv::Mat iterate(const int &_int_iterNum, bool &_b_isNoMore, std::vector<bool> &_v_isInliers, int &_int_inliersNum);
     private:
@@ -30,38 +30,38 @@ namespace YDORBSLAM{
     //
     void set_maximum_number_of_correspondences(const int _int_num);
     void reset_correspondences(void);
-    void add_correspondence(const double &_dbl_3DX, const double &_dbl_3DY, const double &_dbl_3DZ, const double &_dbl_2DX, const double &_dbl_2DY);
+    void add_correspondence(const float &_flt_3DX, const float &_flt_3DY, const float &_flt_3DZ, const float &_flt_2DX, const float &_flt_2DY);
     void compute_pose(cv::Mat &_rotation, cv::Mat &_translation);
-    void relative_error(double & _rotErr, double & _transErr, const cv::Mat _rotTrue, const cv::Mat _transTrue, const cv::Mat _rotEst,  const cv::Mat _transEst);
+    void relative_error(float & _rotErr, float & _transErr, const cv::Mat _rotTrue, const cv::Mat _transTrue, const cv::Mat _rotEst,  const cv::Mat _transEst);
     void print_pose(const cv::Mat &_rotation, const cv::Mat &_translation);
-    double reprojection_error(const cv::Mat &_rotation, const cv::Mat &_translation);
+    float reprojection_error(const cv::Mat &_rotation, const cv::Mat &_translation);
     void choose_control_points(void);
     void compute_barycentric_coordinates(void);
-    void fill_M(cv::Mat &_M, const int &_row, const std::vector<double> &_alphas, const double &_u, const double &_v);
-    void compute_ccs(const std::vector<double> &_betas, const std::vector<double> &_ut);
+    void fill_M(cv::Mat &_M, const int &_row, const std::vector<float> &_alphas, const float &_u, const float &_v);
+    void compute_ccs(const float *_betas, const float *_ut);
     void compute_pcs(void);
     void solve_for_sign(void);
-    void find_betas_approx_1(const cv::Mat &_L_6x10, const cv::Mat &_Rho, std::vector<double> &_betas);
-    void find_betas_approx_2(const cv::Mat &_L_6x10, const cv::Mat &_Rho, std::vector<double> &_betas);
-    void find_betas_approx_3(const cv::Mat &_L_6x10, const cv::Mat &_Rho, std::vector<double> &_betas);
+    void find_betas_approx_1(const cv::Mat &_L_6x10, const cv::Mat &_Rho, std::vector<float> &_betas);
+    void find_betas_approx_2(const cv::Mat &_L_6x10, const cv::Mat &_Rho, std::vector<float> &_betas);
+    void find_betas_approx_3(const cv::Mat &_L_6x10, const cv::Mat &_Rho, std::vector<float> &_betas);
     void qr_solve(cv::Mat & _A, cv::Mat &_b, cv::Mat &_X);
-    double dot(const std::vector<double> &_v1, const std::vector<double> &_v2);
-    double dist2(const std::vector<double> &_p1, const std::vector<double> &_p2);
-    void compute_rho(std::vector<double> &_rho);
-    void compute_L_6x10(const std::vector<double> &_ut, std::vector<double> &_l_6x10);
-    void gauss_newton(const cv::Mat &_L_6x10, const cv::Mat &_Rho, std::vector<double> &_current_betas);
-    void compute_A_and_b_gauss_newton(const std::vector<double> &_l_6x10, const std::vector<double> &_rho, std::vector<double> &_cb, cv::Mat &_A, cv::Mat &_b);
-    double compute_R_and_t(const std::vector<double> &_ut, const std::vector<double> &_betas, cv::Mat &_rotation, cv::Mat &_translation);
-    void estimate_R_and_t(cv::Mat &_rotation, cv::Mat &_translation);
+    float dot(const float *_v1, const float *_v2);
+    float dist2(const float *_p1, const float *_p2);
+    void compute_rho(float *_rho);
+    void compute_L_6x10(const float *_u, float *_l_6x10);
+    void gauss_newton(const cv::Mat &_L_6x10, const cv::Mat &_Rho, float _current_betas[4]);
+    void compute_A_and_b_gauss_newton(const std::vector<float> &_l_6x10, const std::vector<float> &_rho, std::vector<float> &_cb, cv::Mat &_A, cv::Mat &_b);
+    float compute_R_and_t(const float *_ut, const float *_betas, float _rotation[3][3], float _translation[3]);
+    void estimate_R_and_t(float _rotation[3][3], float _translation[3]);
     void copy_R_and_t(const cv::Mat &_rotationDst, const cv::Mat &_transDst, cv::Mat &_rotationSrc, cv::Mat &_transSrc);
-    void mat_to_quat(const cv::Mat &_rotation, std::<double> _q);
-    double m_dbl_uc, m_dbl_vc, m_dbl_fu, m_dbl_fv;
-    std::vector<double> m_v_pws, m_v_us, m_v_alphas, m_v_pcs;
-    int m_int_maximum_number_of_correspondences = 0;
-    int m_int_number_of_correspondences = 0; 
-    std::vector<std::vector<double>> m_vv_cws = std::vector<std::vector<int>>(4,std::vector<int>(3));
-    std::vector<std::vector<double>> m_vv_ccs = std::vector<std::vector<int>>(4,std::vector<int>(3));
-    double m_dbl_cws_determinant;
+    void mat_to_quat(const cv::Mat &_rotation, std::<float> _q);
+    float m_flt_uc, m_flt_vc, m_flt_fu, m_flt_fv;
+    std::vector<float> m_v_pws, m_v_us, m_v_alphas, m_v_pcs;
+    int m_int_maxCorrespondencesNum = 0;
+    int m_int_correspondencesNum = 0; 
+    std::vector<std::vector<float>> m_vv_cws = std::vector<std::vector<int>>(4,std::vector<int>(3));
+    std::vector<std::vector<float>> m_vv_ccs = std::vector<std::vector<int>>(4,std::vector<int>(3));
+    float m_flt_cws_determinant;
     std::vector<std::shared_ptr<MapPoint>> m_v_matchedMapPoints;
     //2d points
     std::vector<cv::Point2f> m_v_point2D;
@@ -71,9 +71,9 @@ namespace YDORBSLAM{
     //index in frame
     std::vector<int> m_v_keyPointsIndices;
     //current estimation
-    std::vector<std::vector<double>> m_v_currentRotation = std::vector<std::vector<double>>(3,std::vector<double>(3));
-    std::vector<double> m_v_currentTranslation = std::vector<double>(3);
-    cv::Mat m_T_c2w;
+    cv::Mat m_cvMat_currentRotation;
+    cv::Mat m_cvMat_currentTranslation;
+    cv::Mat m_cvMat_T_c2w;
     std::vector<bool> m_v_isInliers;
     int m_int_inliersNum = 0;
     //current ransac state
@@ -84,13 +84,13 @@ namespace YDORBSLAM{
     //refined
     cv::Mat m_cvMat_refinedT_c2w;
     std::vector<bool> m_v_isRefinedInliers;
-    int refinedInliersNum = 0;
+    int m_int_refinedInliersNum = 0;
     //number of correspondences
     int m_int_correspondencesNum = 0;
     //indices for random selections [0 ... N-1]
     std::vector<int> m_v_allIndices;
     //ransac probability
-    double m_dbl_ransacProb;
+    float m_flt_ransacProb;
     //ransac min inliers number
     int m_int_minRansacInliersNum;
     //ransac max iteration number

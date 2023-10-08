@@ -24,14 +24,14 @@ namespace YDORBSLAM{
       }
     }
     //set camera calibration parameters
-    m_dbl_fu = _frame.m_flt_fx;
-    m_dbl_fv = _frame.m_flt_fy;
-    m_dbl_uc = _frame.m_flt_cx;
-    m_dbl_vc = _frame.m_flt_cy;
+    m_flt_fu = _frame.m_flt_fx;
+    m_flt_fv = _frame.m_flt_fy;
+    m_flt_uc = _frame.m_flt_cx;
+    m_flt_vc = _frame.m_flt_cy;
     setRansacParameters();
   }
-  void PnPsolver::setRansacParameters(const double &_dbl_probability = 0.99, const int &_int_minInliersNum = 8, const int &_int_maxIterNum = 300, const int &_int_minSet = 4, const float &_flt_epsilon = 0.4, const float &_flt_thd = 5.991){
-    m_dbl_ransacProb = _dbl_probability;
+  void PnPsolver::setRansacParameters(const float &_flt_probability = 0.99, const int &_int_minInliersNum = 8, const int &_int_maxIterNum = 300, const int &_int_minSet = 4, const float &_flt_epsilon = 0.4, const float &_flt_thd = 5.991){
+    m_flt_ransacProb = _flt_probability;
     m_int_minRansacInliersNum = _int_minInliersNum;
     m_int_maxRansacIterNum = _int_maxIterNum;
     m_int_minRansacSet = _int_minSet;
@@ -46,7 +46,7 @@ namespace YDORBSLAM{
     m_flt_ransacEpsilon = m_flt_ransacEpsilon<(float)m_int_minRansacInliersNum/m_int_correspondencesNum?(float)m_int_minRansacInliersNum/m_int_correspondencesNum:m_flt_ransacEpsilon;
     //set ransac iterations according to probability, epsilon, and max iterations
     int iterNum;
-    iterNum = m_int_minRansacInliersNum==m_int_correspondencesNum?1:ceil(log(1-m_dbl_ransacProb)/log(1-pow(m_flt_ransacEpsilon,3)));
+    iterNum = m_int_minRansacInliersNum==m_int_correspondencesNum?1:ceil(log(1-m_flt_ransacProb)/log(1-pow(m_flt_ransacEpsilon,3)));
     m_int_maxRansacIterNum = std::max(1,std::min(iterNum,m_int_maxRansacIterNum));
     m_v_maxErrors.reserve(m_v_scaleFactorSquares.size());
     for(const float &scaleFactorSquare:m_v_scaleFactorSquares){
@@ -82,10 +82,305 @@ namespace YDORBSLAM{
         vAvailableIndices.pop_back();
       }
       //compute camera pose
-      compute_pose(m_v_currentRotation,m_v_currentTranslation);
+      compute_pose(m_cvMat_currentRotation,m_cvMat_currentTranslation);
       //check inliners
       checkInliers();
-      //stop here
+      if(m_int_inliersNum>=m_int_minRansacInliersNum){
+        //if it is the best solution so far, save it
+        if(m_int_inliersNum>m_int_bestInliersNum){
+          m_v_isBestInliers = m_v_isInliers;
+          m_int_bestInliersNum = m_int_inliersNum;
+          m_bestT_c2w = cv::Mat::eye(4,4,CV_32F);
+          m_cvMat_currentRotation.copyTo(m_bestT_c2w.rowRange(0,3).colRange(0,3));
+          m_cvMat_currentTranslation.copyTo(m_bestT_c2w.rowRange(0,3).col(3));
+        }
+        if(refine()){
+          _int_inliersNum = m_int_refinedInliersNum;
+          _v_isInliers = std::vector<bool>(m_v_matchedMapPoints.size(),false);
+          for(int i=0;i<m_int_correspondencesNum;i++){
+            if(m_v_isRefinedInliers[i]){
+              _v_isInliers[m_v_keyPointsIndices[i]] = true;
+            }
+          }
+          return m_cvMat_refinedT_c2w.clone();
+        }
+      }
     }
+    if(m_int_currentRansacIterNum>=m_int_maxRansacIterNum){
+      _b_isNoMore = true;
+      if(m_int_bestInliersNum>=m_int_minRansacInliersNum){
+        _v_isInliers = std::vector<bool>(m_v_matchedMapPoints.size(),false);
+        for(int i=0;i<m_int_correspondencesNum;i++){
+          if(m_v_isBestInliers[i]){
+            _v_isInliers[m_v_keyPointsIndices[i]] = true;
+          }
+        }
+        return m_cvMat_bestT_c2w.clone();
+      }
+    }
+    return cv::Mat();
+  }
+  void PnPsolver::checkInliers(){
+    m_int_inliersNum = 0;
+    for(int i=0;i<m_int_correspondencesNum;i++){
+      cv::Point3f point3D = m_v_point3D[i];
+      cv::Point2f point2D = m_v_point2D[i];
+      float xc = m_cvMat_currentRotation.at<float>(0,0)*point3D.x + m_cvMat_currentRotation.at<float>(0,1)*point3D.y + m_cvMat_currentRotation.at<float>(0,2)*point3D.z + m_cvMat_currentTranslation.at<float>(0);
+      float yc = m_cvMat_currentRotation.at<float>(1,0)*point3D.x + m_cvMat_currentRotation.at<float>(1,1)*point3D.y + m_cvMat_currentRotation.at<float>(1,2)*point3D.z + m_cvMat_currentTranslation.at<float>(1);
+      float ue = m_flt_uc + m_flt_fu * xc / (m_cvMat_currentRotation.at<float>(2,0)*point3D.x + m_cvMat_currentRotation.at<float>(2,1)*point3D.y + m_cvMat_currentRotation.at<float>(2,2)*point3D.z + m_cvMat_currentTranslation.at<float>(2));
+      float ve = m_flt_vc + m_flt_fv * yc / (m_cvMat_currentRotation.at<float>(2,0)*point3D.x + m_cvMat_currentRotation.at<float>(2,1)*point3D.y + m_cvMat_currentRotation.at<float>(2,2)*point3D.z + m_cvMat_currentTranslation.at<float>(2));
+      float distX = point2D.x - ue;
+      float distY = point2D.y - ve;
+      float errorSquare = distX * distX + distY * distY;
+      if(errorSquare<m_v_maxErrors[i]){
+        m_v_isInliers[i] = true;
+        m_int_inliersNum++;
+      }else{
+        m_v_isInliers[i] = false;
+      }
+    }
+  }
+  bool PnPsolver::refine(){
+    std::vector<int> vIndices;
+    vIndices.reserve(m_v_isBestInliers.size());
+    for(int i=0;i<m_v_isBestInliers.size();i++){
+      if(m_v_isBestInliers[i]){
+        vIndices.push_back(i);
+      }
+    }
+    set_maximum_number_of_correspondences(vIndices.size());
+    reset_correspondences();
+    for(const int &idx : vIndices){
+      add_correspondence(m_v_point3D[idx].x,m_v_point3D[idx].y,m_v_point3D[idx].z,m_v_point2D[idx].x,m_v_point2D[idx].y); 
+    }
+    compute_pose(m_cvMat_currentRotation,m_cvMat_currentTranslation);
+    checkInliers();
+    m_int_refinedInliersNum = m_int_inliersNum;
+    m_v_isRefinedInliers = m_v_isInliers;
+    if(m_int_inliersNum>m_int_minRansacInliersNum){
+      cv::Mat R_c2w, T_c2w;
+      m_cvMat_currentRotation.convertTo(R_c2w,CV_32F);
+      m_cvMat_currentTranslation.convertTo(T_c2w,CV_32F);
+      m_cvMat_refinedT_c2w = cv::Mat::eye(4,4,CV_32F);
+      R_c2w.copyTo(m_cvMat_refinedT_c2w.rowRange(0,3).colRange(0,3));
+      T_c2w.copyTo(m_cvMat_refinedT_c2w.rowRange(0,3).col(3));
+      return true;
+    }else{
+      return false;
+    }
+  }
+  void PnPsolver::set_maximum_number_of_correspondences(const int _int_num){
+    if(m_int_maxCorrespondencesNum < _int_num){
+      m_int_maxCorrespondencesNum = _int_num;
+      m_v_pws     = std::vector<float>(3*m_int_maxCorrespondencesNum);
+      m_v_us      = std::vector<float>(2*m_int_maxCorrespondencesNum);
+      m_v_alphas  = std::vector<float>(4*m_int_maxCorrespondencesNum);
+      m_v_pcs     = std::vector<float>(3*m_int_maxCorrespondencesNum);
+    }
+  }
+  void PnPsolver::reset_correspondences(void){
+    m_int_correspondencesNum = 0;
+  }
+  void PnPsolver::add_correspondence(const float &_flt_3DX, const float &_flt_3DY, const float &_flt_3DZ, const float &_flt_2DX, const float &_flt_2DY){
+    m_v_pws[3*m_int_correspondencesNum + 0] = _flt_3DX;
+    m_v_pws[3*m_int_correspondencesNum + 1] = _flt_3DY;
+    m_v_pws[3*m_int_correspondencesNum + 2] = _flt_3DZ;
+    m_v_us[2*m_int_correspondencesNum + 0] = _flt_2DX;
+    m_v_us[2*m_int_correspondencesNum + 1] = _flt_2DY;
+    m_int_correspondencesNum++;
+  }
+  void PnPsolver::compute_pose(cv::Mat &_rotation, cv::Mat &_translation){
+    choose_control_points();
+    compute_barycentric_coordinates();
+    cv::Mat M = cv::Mat::zeros(2*m_int_correspondencesNum,12,CV_32F);
+    for(int i=0;i<m_int_correspondencesNum;i++){
+      fill_M(M,2*i,std::vector<float>(m_v_alphas.begin() + 4*i, m_v_alphas.begin() + 4*(i+1)),m_v_us[2*i],m_v_us[2*i+1]);
+    }
+    float mtm[12 * 12] = {}, d[12] = {}, ut[12 * 12] = {}, vt[12 * 12] = {};
+    cv::Mat MtM = cv::Mat(12,12,CV_32F,mtm);
+    cv::Mat D   = cv::Mat(12, 1,CV_32F,d);
+    cv::Mat Ut  = cv::Mat(12,12,CV_32F,ut);
+    cv::Mat Vt  = cv::Mat(12,12,CV_32F,vt);
+    cv::mulTransposed(M,MtM,true);
+    cv::SVD::compute(MtM, D, Ut.t(), Vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+    M.release();
+    float l_6x10[6 * 10] = {}, rho[6] = {};
+    cv::Mat L_6x10 = cv::Mat(6,10,CV_32F,l_6x10);
+    cv::Mat Rho    = cv::Mat(6, 1,CV_32F,rho);
+    compute_L_6x10(u,l_6x10);
+    compute_rho(rho);
+    float Betas[4][4] = {}, rep_errors[4] = {};
+    float Rs[4][3][3] = {}, ts[4][3] = {};
+    find_betas_approx_1(L_6x10, Rho, Betas[1]);
+    gauss_newton(L_6x10, Rho, Betas[1]);
+    rep_errors[1] = compute_R_and_t(ut, Betas[1], Rs[1], ts[1]);
+    find_betas_approx_2(L_6x10, Rho, Betas[2]);
+    gauss_newton(L_6x10, Rho, Betas[2]);
+    rep_errors[2] = compute_R_and_t(ut, Betas[2], Rs[2], ts[2]);
+    find_betas_approx_3(L_6x10, Rho, Betas[3]);
+    gauss_newton(L_6x10, Rho, Betas[3]);
+    rep_errors[3] = compute_R_and_t(ut, Betas[3], Rs[3], ts[3]);
+    int N = 1;
+    if (rep_errors[2] < rep_errors[1]) N = 2;
+    if (rep_errors[3] < rep_errors[N]) N = 3;
+    cv::Mat(3,1,CV_32F,ts[N]).copyTo(_translation);
+    cv::Mat(3,3,CV_32F,Rs[N]).copyTo(_rotation);
+  }
+  void PnPsolver::fill_M(cv::Mat &_M, const int &_row, const std::vector<float> &_alphas, const float &_u, const float &_v){
+    float *M1 = M.ptr<float>(0) + _row * 12;
+    float *M2 = M1 + 12;
+    for(int i = 0; i < 4; i++) {
+      M1[3 * i    ] = _alphas[i] * m_flt_fu;
+      M1[3 * i + 1] = 0.0;
+      M1[3 * i + 2] = _alphas[i] * (m_flt_uc - _u);
+      M2[3 * i    ] = 0.0;
+      M2[3 * i + 1] = _alphas[i] * m_flt_fv;
+      M2[3 * i + 2] = _alphas[i] * (m_flt_vc - _v);
+    }
+  }
+  void PnPsolver::compute_L_6x10(const float *_u, float *_l_6x10){
+    const float * v[4];
+    v[0] = ut + 12 * 11;
+    v[1] = ut + 12 * 10;
+    v[2] = ut + 12 *  9;
+    v[3] = ut + 12 *  8;
+    float dv[4][6][3] = {};
+    for(int i = 0; i < 4; i++) {
+      int a = 0, b = 1;
+      for(int j = 0; j < 6; j++) {
+        dv[i][j][0] = v[i][3 * a    ] - v[i][3 * b];
+        dv[i][j][1] = v[i][3 * a + 1] - v[i][3 * b + 1];
+        dv[i][j][2] = v[i][3 * a + 2] - v[i][3 * b + 2];
+
+        b++;
+        if (b > 3) {
+          a++;
+          b = a + 1;
+        }
+      }
+    }
+    for(int i = 0; i < 6; i++) {
+      float * row = l_6x10 + 10 * i;
+      row[0] =        dot(dv[0][i], dv[0][i]);
+      row[1] = 2.0f * dot(dv[0][i], dv[1][i]);
+      row[2] =        dot(dv[1][i], dv[1][i]);
+      row[3] = 2.0f * dot(dv[0][i], dv[2][i]);
+      row[4] = 2.0f * dot(dv[1][i], dv[2][i]);
+      row[5] =        dot(dv[2][i], dv[2][i]);
+      row[6] = 2.0f * dot(dv[0][i], dv[3][i]);
+      row[7] = 2.0f * dot(dv[1][i], dv[3][i]);
+      row[8] = 2.0f * dot(dv[2][i], dv[3][i]);
+      row[9] =        dot(dv[3][i], dv[3][i]);
+    }
+  }
+  void PnPsolver::compute_rho(float *_rho){
+    rho[0] = dist2(m_vv_cws[0], m_vv_cws[1]);
+    rho[1] = dist2(m_vv_cws[0], m_vv_cws[2]);
+    rho[2] = dist2(m_vv_cws[0], m_vv_cws[3]);
+    rho[3] = dist2(m_vv_cws[1], m_vv_cws[2]);
+    rho[4] = dist2(m_vv_cws[1], m_vv_cws[3]);
+    rho[5] = dist2(m_vv_cws[2], m_vv_cws[3]);
+  }
+  float PnPsolver::dot(const float *_v1, const float *_v2){
+    return _v1[0] * _v2[0] + _v1[1] * _v2[1] + _v1[2] * _v2[2];
+  }
+  float PnPsolver::dist2(const float *_p1, const float *_p2){
+    return
+    (_p1[0] - _p2[0]) * (_p1[0] - _p2[0]) +
+    (_p1[1] - _p2[1]) * (_p1[1] - _p2[1]) +
+    (_p1[2] - _p2[2]) * (_p1[2] - _p2[2]);
+  }
+  float PnPsolver::compute_R_and_t(const float *_ut, const float *_betas, float _rotation[3][3], float _translation[3]){
+    compute_css(_betas,_ut);
+    compute_pcs();
+    solve_for_sign();
+    estimate_R_and_t(_R, _t);
+    return reprojection_error(_R, _t);
+  }
+  void PnPsolver::compute_ccs(const float *_betas, const float *_ut){
+    for(int i = 0; i < 4; i++)
+      m_vv_ccs[i][0] = m_vv_ccs[i][1] = m_vv_ccs[i][2] = 0.0f;
+    for(int i = 0; i < 4; i++) {
+      const float *v = _ut + 12 * (11 - i);
+      for(int j = 0; j < 4; j++){
+        for(int k = 0; k < 3; k++){
+  	      m_vv_ccs[j][k] += betas[i] * v[3 * j + k];
+        }
+      }
+    }
+  }
+  void PnPsolver::compute_pcs(void){
+    for(int i = 0; i < m_int_correspondencesNum; i++) {
+      float * a = &m_v_alphas[0] + 4 * i;
+      float * pc = &m_v_pcs[0] + 3 * i;
+
+      for(int j = 0; j < 3; j++)
+        pc[j] = a[0] * m_vv_ccs[0][j] + a[1] * m_vv_ccs[1][j] + a[2] * m_vv_ccs[2][j] + a[3] * m_vv_ccs[3][j];
+    }
+  }
+  void PnPsolver::solve_for_sign(void){
+    if (m_v_pcs[2] < 0.0) {
+      for(int i = 0; i < 4; i++){
+        for(int j = 0; j < 3; j++){
+          m_vv_ccs[i][j] = -m_vv_ccs[i][j];
+        }
+      }
+
+      for(int i = 0; i < m_int_correspondencesNum; i++) {
+        m_v_pcs[3 * i    ] = -m_v_pcs[3 * i];
+        m_v_pcs[3 * i + 1] = -m_v_pcs[3 * i + 1];
+        m_v_pcs[3 * i + 2] = -m_v_pcs[3 * i + 2];
+      }
+    }
+  }
+  void PnPsolver::estimate_R_and_t(float _rotation[3][3], float _translation[3]){
+    float pc0[3] = {}, pw0[3] = {};
+    pc0[0] = pc0[1] = pc0[2] = 0.0;
+    pw0[0] = pw0[1] = pw0[2] = 0.0;
+    for(int i = 0; i < number_of_correspondences; i++) {
+      const float * pc = &m_v_pcs[3 * i];
+      const float * pw = &m_v_pws[3 * i];
+      for(int j = 0; j < 3; j++) {
+        pc0[j] += pc[j];
+        pw0[j] += pw[j];
+      }
+    }
+    for(int j = 0; j < 3; j++) {
+      pc0[j] /= m_int_correspondencesNum;
+      pw0[j] /= m_int_correspondencesNum;
+    }
+    float abt[3 * 3] = {}, abt_d[3] = {}, abt_u[3 * 3] = {}, abt_v[3 * 3] = {};
+    cv::Mat ABt   = cv::Mat(3,3,CV_32F,abt);
+    cv::Mat ABt_D = cv::Mat(3,1,CV_32F,abt_d);
+    cv::Mat ABt_U = cv::Mat(3,3,CV_32F,abt_u);
+    cv::Mat ABt_V = cv::Mat(3,3,CV_32F,abt_v);
+    ABt.setTo(cv::Scalar::all(0.0f));
+    for(int i = 0; i < m_int_correspondencesNum; i++) {
+      float * pc = &m_v_pcs[3 * i];
+      float * pw = &m_v_pws[3 * i];
+
+      for(int j = 0; j < 3; j++) {
+        abt[3 * j    ] += (pc[j] - pc0[j]) * (pw[0] - pw0[0]);
+        abt[3 * j + 1] += (pc[j] - pc0[j]) * (pw[1] - pw0[1]);
+        abt[3 * j + 2] += (pc[j] - pc0[j]) * (pw[2] - pw0[2]);
+      }
+    }
+    cv::SVD::compute(ABt, ABt_D, ABt_U, ABt_V.t(), cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+    for(int i = 0; i < 3; i++){
+      for(int j = 0; j < 3; j++){
+        _rotation[i][j] = dot(abt_u + 3 * i, abt_v + 3 * j);
+      }
+    }
+    const float det =
+    _rotation[0][0] * _rotation[1][1] * _rotation[2][2] + _rotation[0][1] * _rotation[1][2] * _rotation[2][0] + _rotation[0][2] * _rotation[1][0] * _rotation[2][1] -
+    _rotation[0][2] * _rotation[1][1] * _rotation[2][0] - _rotation[0][1] * _rotation[1][0] * _rotation[2][2] - _rotation[0][0] * _rotation[1][2] * _rotation[2][1];
+    if(det<0){
+      _rotation[2][0] = -_rotation[2][0];
+      _rotation[2][1] = -_rotation[2][1];
+      _rotation[2][2] = -_rotation[2][2];
+    }
+    _translation[0] = pc0[0] - dot(_rotation[0], pw0);
+    _translation[1] = pc0[1] - dot(_rotation[1], pw0);
+    _translation[2] = pc0[2] - dot(_rotation[2], pw0);
   }
 }//namespace YDORBSLAM
