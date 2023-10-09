@@ -383,4 +383,268 @@ namespace YDORBSLAM{
     _translation[1] = pc0[1] - dot(_rotation[1], pw0);
     _translation[2] = pc0[2] - dot(_rotation[2], pw0);
   }
+  float PnPsolver::reprojection_error(const float _rotation[3][3], const float &_translation[3]){
+    float squaredSum = 0.0;
+    for(int i=0;i<m_int_correspondencesNum;i++){
+      float * pw = &m_v_pws[3 * i];
+      float Xc = dot(_rotation[0], pw) + _translation[0];
+      float Yc = dot(_rotation[1], pw) + _translation[1];
+      float ue = uc + fu * Xc  / (dot(_rotation[2], pw) + _translation[2]);
+      float ve = vc + fv * Yc  / (dot(_rotation[2], pw) + _translation[2]);
+      float u = us[2 * i], v = us[2 * i + 1];
+      squaredSum += sqrt( (u - ue) * (u - ue) + (v - ve) * (v - ve) );
+    }
+    return squaredSum / m_int_correspondencesNum;
+  }
+  void PnPsolver::choose_control_points(void){
+    // Take C0 as the reference points centroid:
+    m_vv_cws[0][0] = m_vv_cws[0][1] = m_vv_cws[0][2] = 0;
+    for(int i=0;i<m_int_correspondencesNum;i++){
+      for(int j=0;j<3;j++){
+        m_vv_cws[0][j] += m_v_pws[3 * i + j];
+      }
+    }
+    for(int j=0;j<3;j++){
+      m_vv_cws[0][j] /= m_int_correspondencesNum;
+    }
+    // Take C1, C2, and C3 from PCA on the reference points:
+    cv::Mat PW0 = cv::Mat(m_int_correspondencesNum,3,CV_32F);
+    float pw0tpw0[3 * 3] = {}, dc[3] = {}, uct[3 * 3] = {};
+    cv::Mat PW0tPW0 = cv::Mat(3, 3, CV_32F, pw0tpw0);
+    cv::Mat DC      = cv::Mat(3, 1, CV_32F, dc);
+    cv::Mat UCt     = cv::Mat(3, 3, CV_32F, uct);
+    cv::Mat VCt     = cv::Mat(3, 3, CV_32F);
+    for(int i=0;i<m_int_correspondencesNum;i++){
+      for(int j=0;j<3;j++){
+        PW0.at<float>(3*i + j) = m_v_pws[3*i + j] - m_vv_cws[0][j];
+      }
+    }
+    cv::mulTransposed(PW0,PW0tPW0,true);
+    cv::SVD::compute(PW0tPW0, DC, UCt.t(), VCt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+    PW0.release();
+    for(int i=1;i<4;i++){
+      float k = sqrt(dc[i-1]/m_int_correspondencesNum);
+      for(int j=0;j<3;j++){
+        m_vv_cws[i][j] = m_vv_cws[0][j] + k*uct[3*(i-1)+j];
+      }
+    }
+  }
+  void PnPsolver::compute_barycentric_coordinates(void){
+    float cc[3 * 3] = {}, cc_inv[3 * 3] = {};
+    cv::Mat CC     = cv::Mat(3, 3, CV_32F, cc);
+    cv::Mat CC_inv = cv::Mat(3, 3, CV_32F, cc_inv);
+
+    for(int i=0;i<3;i++){
+      for(int j=1;j<4;j++){
+        cc[3 * i + j - 1] = m_vv_cws[j][i] - m_vv_cws[0][i];
+      }
+    }
+    cv::invert(CC,CC_inv,CV_SVD);
+    float *ci = cc_inv;
+    for(int i=0;i<m_int_correspondencesNum;i++) {
+      float *pi = &m_v_pws[0] + 3 * i;
+      float *a  = &m_v_alphas[0] + 4 * i;
+
+      for(int j=0;j<3;j++)
+      {
+        a[1 + j] =
+          ci[3 * j    ] * (pi[0] - cws[0][0]) +
+          ci[3 * j + 1] * (pi[1] - cws[0][1]) +
+          ci[3 * j + 2] * (pi[2] - cws[0][2]);
+      }
+      a[0] = 1.0f - a[1] - a[2] - a[3];
+    }
+  }
+  void PnPsolver::find_betas_approx_1(const cv::Mat &_L_6x10, const cv::Mat &_Rho, float *_betas){
+    float l_6x4[6 * 4] = {}, b4[4] = {};
+    cv::Mat L_6x4 = cv::Mat(6, 4, CV_32F, l_6x4);
+    cv::Mat B4    = cv::Mat(4, 1, CV_32F, b4);
+    for(int i=0;i<6;i++){
+      L_6x4.at<float>(i,0) = _L_6x10.at<float>(i,0);
+      L_6x4.at<float>(i,1) = _L_6x10.at<float>(i,1);
+      L_6x4.at<float>(i,2) = _L_6x10.at<float>(i,3);
+      L_6x4.at<float>(i,3) = _L_6x10.at<float>(i,6);
+    }
+    cv::solve(L_6x4, _Rho, B4, CV_SVD);
+    if(b4[0]<0){
+      _betas[0] = sqrt(-b4[0]);
+      _betas[1] = -b4[1] / _betas[0];
+      _betas[2] = -b4[2] / _betas[0];
+      _betas[3] = -b4[3] / _betas[0];
+    }else{
+      _betas[0] = sqrt(b4[0]);
+      _betas[1] = b4[1] / _betas[0];
+      _betas[2] = b4[2] / _betas[0];
+      _betas[3] = b4[3] / _betas[0];
+    }
+  }
+  void PnPsolver::find_betas_approx_2(const cv::Mat &_L_6x10, const cv::Mat &_Rho, float *_betas){
+    float l_6x3[6 * 3] = {}, b3[3] = {};
+    cv::Mat L_6x3 = cv::Mat(6, 3, CV_32F, l_6x3);
+    cv::Mat B3    = cv::Mat(3, 1, CV_32F, b3);
+    for(int i=0;i<6;i++){
+      L_6x3.at<float>(i,0) = _L_6x10.at<float>(i,0);
+      L_6x3.at<float>(i,1) = _L_6x10.at<float>(i,1);
+      L_6x3.at<float>(i,2) = _L_6x10.at<float>(i,2);
+    }
+    cv::solve(L_6x3, _Rho, B3, CV_SVD);
+    if(b3[0]<0){
+      _betas[0] = sqrt(-b3[0]);
+      _betas[1] = (b3[2]<0) ? sqrt(-b3[2]) : 0.0;
+    }else{
+      _betas[0] = sqrt(b4[0]);
+      _betas[1] = (b3[2]>0) ? sqrt(b3[2]) : 0.0;
+    }
+    if (b3[1]<0) _betas[0] = -_betas[0];
+    _betas[2] = 0.0;
+    _betas[3] = 0.0;
+  }
+  void PnPsolver::find_betas_approx_3(const cv::Mat &_L_6x10, const cv::Mat &_Rho, float *_betas){
+    float l_6x5[6 * 5] = {}, b5[5] = {};
+    cv::Mat L_6x5 = cv::Mat(6, 5, CV_32F, l_6x5);
+    cv::Mat B5    = cv::Mat(5, 1, CV_32F, b5);
+    for(int i=0;i<6;i++){
+      L_6x5.at<float>(i,0) = _L_6x10.at<float>(i,0);
+      L_6x5.at<float>(i,1) = _L_6x10.at<float>(i,1);
+      L_6x5.at<float>(i,2) = _L_6x10.at<float>(i,2);
+      L_6x5.at<float>(i,3) = _L_6x10.at<float>(i,3);
+      L_6x5.at<float>(i,4) = _L_6x10.at<float>(i,4);
+    }
+    cv::solve(L_6x5, _Rho, B5, CV_SVD);
+    if(b5[0]<0){
+      _betas[0] = sqrt(-b5[0]);
+      _betas[1] = (b5[2]<0) ? sqrt(-b5[2]) : 0.0;
+    }else{
+      _betas[0] = sqrt(b5[0]);
+      _betas[1] = (b5[2]>0) ? sqrt(b5[2]) : 0.0;
+    }
+    if (b5[1]<0) _betas[0] = -_betas[0];
+    _betas[2] = b5[3] / _betas[0];
+    _betas[3] = 0.0;
+  }
+  void PnPsolver::qr_solve(cv::Mat &_A, cv::Mat &_b, cv::Mat &_X){
+    static int max_nr = 0;
+    static float *A1, *A2;
+    const int nr = _A->rows;
+    const int nc = _A->cols;
+    if(nc<=0 || nr<=0){
+      return;
+    }
+    if(max_nr!=0 && max_nr<nr){
+      delete [] A1;
+      delete [] A2;
+    }
+    if(max_nr<nr){
+      max_nr = nr;
+      A1 = new float[nr];
+      A2 = new float[nr];
+    }
+    float *pA = (float*)_A.data, *ppAkk = pA;
+    for(int k=0;k<nc;k++){
+      float *ppAik1 = ppAkk, eta = fabs(*ppAik1);
+      for(int i=k+1;i<nr;i++){
+        float elt = fabs(*ppAik1);
+        if(eta<elt){
+          eta = elt;
+        }
+        ppAik1 += nc;
+      }
+      if(eta==0){
+        A1[k] = A2[k] = 0.0;
+        //cerr << "God damnit, A is singular, this shouldn't happen." << endl;
+        return;
+      }else{
+        float *ppAik2 = ppAkk, squaredSum = 0.0; inv_eta = 1.0 / eta;
+        for(int i=k;i<nr;i++){
+          *ppAik2 *= inv_eta;
+          squaredSum += *ppAik2 * *ppAik2;
+          ppAik2 += nc;
+        }
+        float sigma = sqrt(squaredSum);
+        if(*ppAkk<0){
+          sigma = -sigma;
+        }
+        *ppAkk += sigma;
+        A1[k] = sigma * *ppAkk;
+        A2[k] = -eta * sigma;
+        for(int j=k+1;j<nc;j++){
+          float *ppAik = ppAkk, sum = 0;
+          for(int i=k;i<nr;i++){
+            sum += *ppAik * ppAik[j-k];
+            ppAik += nc;
+          }
+          float tau = sum / A1[k];
+          ppAik = ppAkk;
+          for(int i=k;i<nr;i++){
+            ppAik[j-k] -= tau * *ppAik;
+            ppAik += nc;
+          }
+        }
+      }
+      ppAkk += nc + 1;
+    }
+    // b <- Qt b
+    float *ppAjj = pA, *pb = (float*)_b.data;
+    for(int j=0;j<nc;j++){
+      float *ppAij = ppAjj, tau = 0.0;
+      for(int i=j;i<nr;i++){
+        tau += *ppAij * pb[i];
+        ppAij += nc;
+      }
+      tau /= A1[j];
+      ppAij = ppAjj;
+      for(int i=j;i<nr;i++){
+        pb[i] -= tau * *ppAij;
+        ppAij += nc;
+      }
+      ppAjj += nc + 1;
+    }
+    // X = R-1 b
+    float *pX = (float)_X.data;
+    pX[nc - 1] = pb[nc - 1] / A2[nc - 1];
+    for(int i=nc-2;i>=0;i--){
+      float * ppAij = pA + i * nc + (i + 1), sum = 0;
+      for(int j=i+1;j<nc;j++){
+        sum += *ppAij * pX[j];
+        ppAij++;
+      }
+      pX[i] = (pb[i] - sum) / A2[i];
+    }
+  }
+  void PnPsolver::gauss_newton(const cv::Mat &_L_6x10, const cv::Mat &_Rho, float _current_betas[4]){
+    const int iterations_number = 5;
+    double a[6*4] = {}, b[6] = {}, x[4] = {};
+    cv::Mat A = cv::Mat(6, 4, CV_32F, a);
+    cv::Mat B = cv::Mat(6, 1, CV_32F, b);
+    cv::Mat X = cv::Mat(4, 1, CV_32F, x);
+    for(int k=0;k<iterations_number;k++){
+      compute_A_and_b_gauss_newton((float*)_L_6x10.data,(float*)_Rho.data,_current_betas,A,B);
+      qr_solve(A,B,X);
+      for(int i=0;i<4;i++){
+        _current_betas[i]+=x[i];
+      }
+    }
+  }
+  void PnPsolver::compute_A_and_b_gauss_newton(const float *_l_6x10, const float *_rho, float *_cb[4], cv::Mat &_A, cv::Mat &_b){
+    for(int i=0;i<6;i++){
+      const float *rowL = _l_6x10 + i * 10;
+      float *rowA = (float*)_A.data + i * 4;
+      rowA[0] = 2 * rowL[0] * _cb[0] +     rowL[1] * _cb[1] +     rowL[3] * _cb[2] +     rowL[6] * _cb[3];
+      rowA[1] =     rowL[1] * _cb[0] + 2 * rowL[2] * _cb[1] +     rowL[4] * _cb[2] +     rowL[7] * _cb[3];
+      rowA[2] =     rowL[3] * _cb[0] +     rowL[4] * _cb[1] + 2 * rowL[5] * _cb[2] +     rowL[8] * _cb[3];
+      rowA[3] =     rowL[6] * _cb[0] +     rowL[7] * _cb[1] +     rowL[8] * _cb[2] + 2 * rowL[9] * _cb[3];
+      _b.at<float>(i,0) = _rho[i] - (
+      rowL[0] * _cb[0] * _cb[0] +
+      rowL[1] * _cb[0] * _cb[1] +
+      rowL[2] * _cb[1] * _cb[1] +
+      rowL[3] * _cb[0] * _cb[2] +
+      rowL[4] * _cb[1] * _cb[2] +
+      rowL[5] * _cb[2] * _cb[2] +
+      rowL[6] * _cb[0] * _cb[3] +
+      rowL[7] * _cb[1] * _cb[3] +
+      rowL[8] * _cb[2] * _cb[3] +
+      rowL[9] * _cb[3] * _cb[3]
+      )
+    }
+  }
 }//namespace YDORBSLAM
