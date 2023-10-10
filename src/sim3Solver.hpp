@@ -29,10 +29,10 @@ namespace YDORBSLAM{
     cv::Mat getEstimatedTranslation();
     float getEstimatedScale();
     protected:
-    void computeCentroid(cv::Mat &_p, cv::Mat &_pr, cv::Mat &_c);
+    void computeCentroid(cv::Mat &_mapPoint3DInCamera, cv::Mat &_mapPoint3DRel2Centroid, cv::Mat &_centroid);
     void computeSim3(cv::Mat &_firstMapPoint3DInCamera, cv::Mat &_secondMapPoint3DInCamera);
     void checkInliers();
-    void project(const std::vector<cv::Mat> &_vP3Dw, std::vector<cv::Mat> &_vP2D, cv::Mat _T_c2w, cv::Mat _interParam);
+    void project(const std::vector<cv::Mat> &_vMapPointsPosInCamera, std::vector<cv::Mat> &_vPointsPosInImage, cv::Mat _transformation_target2origin, cv::Mat _interParam);
     void transferCamera2Image(const std::vector<cv::Mat> &_P3Dc, std::vector<cv::Mat> &_vP2D, cv::Mat _interParam);
     std::shared_ptr<KeyFrame> m_sptr_firstKeyFrame, m_sptr_secondKeyFrame;
     std::vector<cv::Mat> m_v_firstMapPointsPosInCamera, m_v_secondMapPointsPosInCamera;
@@ -56,7 +56,7 @@ namespace YDORBSLAM{
     //indices for random selection
     std::vector<int> m_v_allIndices;
     //projections
-    std::vector<cv::Mat> m_v_P1im1, m_v_P2im2; //need to be changed when the meaning is clear
+    std::vector<cv::Mat> m_v_firstPointInFirstImage, m_v_secondPointInSecondImage;
     //ransac probability
     float m_flt_ransacProb;
     //min ransac inliers number and max ransac iterations number
