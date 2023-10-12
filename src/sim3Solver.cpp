@@ -46,10 +46,10 @@ namespace YDORBSLAM{
         }
       }
     }
-    m_cvMat_firstintParMat = m_sptr_firstKeyFrame->m_cvMat_intParMat;
-    m_cvMat_secondintParMat = m_sptr_secondKeyFrame->m_cvMat_intParMat;
-    transferCamera2Image(m_v_firstMapPointsPosInCamera,m_v_firstPointInFirstImage,m_cvMat_firstintParMat);
-    transferCamera2Image(m_v_secondMapPointsPosInCamera,m_v_secondPointInSecondImage,m_cvMat_secondintParMat);
+    m_cvMat_firstIntParMat = m_sptr_firstKeyFrame->m_cvMat_intParMat;
+    m_cvMat_secondIntParMat = m_sptr_secondKeyFrame->m_cvMat_intParMat;
+    transferCamera2Image(m_v_firstMapPointsPosInCamera,m_v_firstPointInFirstImage,m_cvMat_firstIntParMat);
+    transferCamera2Image(m_v_secondMapPointsPosInCamera,m_v_secondPointInSecondImage,m_cvMat_secondIntParMat);
     setRansacParameters();
   }
   void Sim3Solver::setRansacParameters(float _probability, int _minInliersNum, int _maxIterNum){
@@ -168,7 +168,7 @@ namespace YDORBSLAM{
     //rotation angle. sin is the norm of the imaginary part, cos is the real part
     float ang=atan2(norm(vec),evec.at<float>(0,0));
     vec = 2*ang*vec/norm(vec); //angle-axis representation. quaternion angle is the half
-    m_cvMat_currentRotation_first2second.create(3,3,P1.type());
+    m_cvMat_currentRotation_first2second.create(3,3,_firstMapPoint3DInCamera.type());
     cv::Rodrigues(vec,m_cvMat_currentRotation_first2second); //computes the rotation matrix from angle-axis
     //step 5: rotate set 2
     cv::Mat P3 = m_cvMat_currentRotation_first2second*secondMapPoint3DRel2Centroid;
@@ -211,10 +211,10 @@ namespace YDORBSLAM{
     m_int_inliersNum = 0;
     for(int i=0;i<m_v_firstPointInFirstImage.size();i++){
       cv::Mat dist1 = m_v_firstPointInFirstImage[i] - vSecondPointsPosInFirstImage[i];
-      cv::Mat dist1 = vFirstPointsPosInSecondImage[i] - m_v_secondPointInSecondImage[i];
+      cv::Mat dist2 = vFirstPointsPosInSecondImage[i] - m_v_secondPointInSecondImage[i];
       const float err1 = dist1.dot(dist1);
       const float err2 = dist2.dot(dist2);
-      if(err1<mvnMaxError1[i] && err2<mvnMaxError2[i]){
+      if(err1<m_v_firstMaxError[i] && err2<m_v_secondMaxError[i]){
         m_v_isInliers[i] = true;
         m_int_inliersNum++;
       }else{
@@ -246,9 +246,8 @@ namespace YDORBSLAM{
     _vPointsPosInImage.clear();
     _vPointsPosInImage.reserve(_vMapPointsPosInCamera.size());
     for(int i=0;i<_vMapPointsPosInCamera.size();i++){
-      cv::Mat P3Dc = rotation_target2origin*_vMapPointsPosInCamera[i]+translation_target2origin;
-      _vPointsPosInImage.push_back((cv::Mat_<float>(2,1) << _interParam.at<float>(0,0)*_vMapPointsPosInCamera.at<float>(0)/(_vMapPointsPosInCamera.at<float>(2))+_interParam.at<float>(0,2), \
-                                                            _interParam.at<float>(1,1)*_vMapPointsPosInCamera.at<float>(1)/(_vMapPointsPosInCamera.at<float>(2))+_interParam.at<float>(1,2)));
+      _vPointsPosInImage.push_back((cv::Mat_<float>(2,1) << _interParam.at<float>(0,0)*_vMapPointsPosInCamera[i].at<float>(0)/(_vMapPointsPosInCamera[i].at<float>(2))+_interParam.at<float>(0,2), \
+                                                            _interParam.at<float>(1,1)*_vMapPointsPosInCamera[i].at<float>(1)/(_vMapPointsPosInCamera[i].at<float>(2))+_interParam.at<float>(1,2)));
     }
   }
 }//namespace YDORBSLAM

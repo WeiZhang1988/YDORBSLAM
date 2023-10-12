@@ -48,7 +48,7 @@ namespace YDORBSLAM{
     void compute_rho(float *_rho);
     void compute_L_6x10(const float *_u, float *_l_6x10);
     void gauss_newton(const cv::Mat &_L_6x10, const cv::Mat &_Rho, float _current_betas[4]);
-    void compute_A_and_b_gauss_newton(const float *_l_6x10, const float *_rho, float *_cb[4], cv::Mat &_A, cv::Mat &_b);
+    void compute_A_and_b_gauss_newton(const float *_l_6x10, const float *_rho, float _cb[4], cv::Mat &_A, cv::Mat &_b);
     float compute_R_and_t(const float *_ut, const float *_betas, float _rotation[3][3], float _translation[3]);
     void estimate_R_and_t(float _rotation[3][3], float _translation[3]);
     float m_flt_uc, m_flt_vc, m_flt_fu, m_flt_fv;

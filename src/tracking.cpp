@@ -747,7 +747,7 @@ namespace YDORBSLAM{
       refRatioThd = 0.9f
     }
     int refKeyFrameMatchNum = m_sptr_refKeyFrame->trackedMapPointsNum(minObservationNum);
-    bool isLocalMapperIdle = m_sptr_localMapper->acceptKeyFrames();
+    bool isLocalMapperIdle = m_sptr_localMapper->isToAcceptKeyFrames();
     //check how many close points are being tracked and how many could potentially be created
     int notTrackedClosePointsNum=0, trackedClosePointsNum=0;
     if(m_sys_sensor!=System::Sensor::MONOCULAR){
@@ -830,7 +830,7 @@ namespace YDORBSLAM{
         }
       }
       m_sptr_localMapper->insertKeyFrame(sptrNewKeyFrame);
-      m_sptr_localMapper->eetNotStop(false);
+      m_sptr_localMapper->setNotStop(false);
       m_int_lastKeyFrameID = m_frame_currentFrame.m_int_ID;
       m_sptr_lastKeyFrame = sptrNewKeyFrame;
     }

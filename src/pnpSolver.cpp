@@ -625,7 +625,7 @@ namespace YDORBSLAM{
       }
     }
   }
-  void PnPsolver::compute_A_and_b_gauss_newton(const float *_l_6x10, const float *_rho, float *_cb[4], cv::Mat &_A, cv::Mat &_b){
+  void PnPsolver::compute_A_and_b_gauss_newton(const float *_l_6x10, const float *_rho, float _cb[4], cv::Mat &_A, cv::Mat &_b){
     for(int i=0;i<6;i++){
       const float *rowL = _l_6x10 + i * 10;
       float *rowA = (float*)_A.data + i * 4;
@@ -644,7 +644,7 @@ namespace YDORBSLAM{
       rowL[7] * _cb[1] * _cb[3] +
       rowL[8] * _cb[2] * _cb[3] +
       rowL[9] * _cb[3] * _cb[3]
-      )
+      );
     }
   }
 }//namespace YDORBSLAM
