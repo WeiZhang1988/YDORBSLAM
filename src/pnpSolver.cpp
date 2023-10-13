@@ -30,7 +30,7 @@ namespace YDORBSLAM{
     m_flt_vc = _frame.m_flt_cy;
     setRansacParameters();
   }
-  void PnPsolver::setRansacParameters(const float &_flt_probability = 0.99, const int &_int_minInliersNum = 8, const int &_int_maxIterNum = 300, const int &_int_minSet = 4, const float &_flt_epsilon = 0.4, const float &_flt_thd = 5.991){
+  void PnPsolver::setRansacParameters(const float &_flt_probability, const int &_int_minInliersNum, const int &_int_maxIterNum, const int &_int_minSet, const float &_flt_epsilon, const float &_flt_thd){
     m_flt_ransacProb = _flt_probability;
     m_int_minRansacInliersNum = _int_minInliersNum;
     m_int_maxRansacIterNum = _int_maxIterNum;
@@ -90,9 +90,9 @@ namespace YDORBSLAM{
         if(m_int_inliersNum>m_int_bestInliersNum){
           m_v_isBestInliers = m_v_isInliers;
           m_int_bestInliersNum = m_int_inliersNum;
-          m_bestT_c2w = cv::Mat::eye(4,4,CV_32F);
-          m_cvMat_currentRotation.copyTo(m_bestT_c2w.rowRange(0,3).colRange(0,3));
-          m_cvMat_currentTranslation.copyTo(m_bestT_c2w.rowRange(0,3).col(3));
+          m_cvMat_bestT_c2w = cv::Mat::eye(4,4,CV_32F);
+          m_cvMat_currentRotation.copyTo(m_cvMat_bestT_c2w.rowRange(0,3).colRange(0,3));
+          m_cvMat_currentTranslation.copyTo(m_cvMat_bestT_c2w.rowRange(0,3).col(3));
         }
         if(refine()){
           _int_inliersNum = m_int_refinedInliersNum;
@@ -200,14 +200,16 @@ namespace YDORBSLAM{
     cv::Mat MtM = cv::Mat(12,12,CV_32F,mtm);
     cv::Mat D   = cv::Mat(12, 1,CV_32F,d);
     cv::Mat Ut  = cv::Mat(12,12,CV_32F,ut);
+    cv::Mat U   = Ut.t();
     cv::Mat Vt  = cv::Mat(12,12,CV_32F,vt);
     cv::mulTransposed(M,MtM,true);
-    cv::SVD::compute(MtM, D, Ut.t(), Vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+    cv::SVD::compute(MtM, D, U, Vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+    Ut = U.t();
     M.release();
     float l_6x10[6 * 10] = {}, rho[6] = {};
     cv::Mat L_6x10 = cv::Mat(6,10,CV_32F,l_6x10);
     cv::Mat Rho    = cv::Mat(6, 1,CV_32F,rho);
-    compute_L_6x10(u,l_6x10);
+    compute_L_6x10(ut,l_6x10);
     compute_rho(rho);
     float Betas[4][4] = {}, rep_errors[4] = {};
     float Rs[4][3][3] = {}, ts[4][3] = {};
@@ -240,10 +242,10 @@ namespace YDORBSLAM{
   }
   void PnPsolver::compute_L_6x10(const float *_u, float *_l_6x10){
     const float * v[4];
-    v[0] = ut + 12 * 11;
-    v[1] = ut + 12 * 10;
-    v[2] = ut + 12 *  9;
-    v[3] = ut + 12 *  8;
+    v[0] = _u + 12 * 11;
+    v[1] = _u + 12 * 10;
+    v[2] = _u + 12 *  9;
+    v[3] = _u + 12 *  8;
     float dv[4][6][3] = {};
     for(int i = 0; i < 4; i++) {
       int a = 0, b = 1;
@@ -260,7 +262,7 @@ namespace YDORBSLAM{
       }
     }
     for(int i = 0; i < 6; i++) {
-      float * row = l_6x10 + 10 * i;
+      float * row = _l_6x10 + 10 * i;
       row[0] =        dot(dv[0][i], dv[0][i]);
       row[1] = 2.0f * dot(dv[0][i], dv[1][i]);
       row[2] =        dot(dv[1][i], dv[1][i]);
@@ -274,28 +276,28 @@ namespace YDORBSLAM{
     }
   }
   void PnPsolver::compute_rho(float *_rho){
-    rho[0] = dist2(m_vv_cws[0], m_vv_cws[1]);
-    rho[1] = dist2(m_vv_cws[0], m_vv_cws[2]);
-    rho[2] = dist2(m_vv_cws[0], m_vv_cws[3]);
-    rho[3] = dist2(m_vv_cws[1], m_vv_cws[2]);
-    rho[4] = dist2(m_vv_cws[1], m_vv_cws[3]);
-    rho[5] = dist2(m_vv_cws[2], m_vv_cws[3]);
+    _rho[0] = dist2(m_vv_cws[0], m_vv_cws[1]);
+    _rho[1] = dist2(m_vv_cws[0], m_vv_cws[2]);
+    _rho[2] = dist2(m_vv_cws[0], m_vv_cws[3]);
+    _rho[3] = dist2(m_vv_cws[1], m_vv_cws[2]);
+    _rho[4] = dist2(m_vv_cws[1], m_vv_cws[3]);
+    _rho[5] = dist2(m_vv_cws[2], m_vv_cws[3]);
   }
   float PnPsolver::dot(const float *_v1, const float *_v2){
     return _v1[0] * _v2[0] + _v1[1] * _v2[1] + _v1[2] * _v2[2];
   }
-  float PnPsolver::dist2(const float *_p1, const float *_p2){
+  float PnPsolver::dist2(const std::vector<float> &_p1, const std::vector<float> &_p2){
     return
     (_p1[0] - _p2[0]) * (_p1[0] - _p2[0]) +
     (_p1[1] - _p2[1]) * (_p1[1] - _p2[1]) +
     (_p1[2] - _p2[2]) * (_p1[2] - _p2[2]);
   }
   float PnPsolver::compute_R_and_t(const float *_ut, const float *_betas, float _rotation[3][3], float _translation[3]){
-    compute_css(_betas,_ut);
+    compute_ccs(_betas,_ut);
     compute_pcs();
     solve_for_sign();
-    estimate_R_and_t(_R, _t);
-    return reprojection_error(_R, _t);
+    estimate_R_and_t(_rotation, _translation);
+    return reprojection_error(_rotation, _translation);
   }
   void PnPsolver::compute_ccs(const float *_betas, const float *_ut){
     for(int i = 0; i < 4; i++)
@@ -304,7 +306,7 @@ namespace YDORBSLAM{
       const float *v = _ut + 12 * (11 - i);
       for(int j = 0; j < 4; j++){
         for(int k = 0; k < 3; k++){
-  	      m_vv_ccs[j][k] += betas[i] * v[3 * j + k];
+  	      m_vv_ccs[j][k] += _betas[i] * v[3 * j + k];
         }
       }
     }
@@ -337,7 +339,7 @@ namespace YDORBSLAM{
     float pc0[3] = {}, pw0[3] = {};
     pc0[0] = pc0[1] = pc0[2] = 0.0;
     pw0[0] = pw0[1] = pw0[2] = 0.0;
-    for(int i = 0; i < number_of_correspondences; i++) {
+    for(int i = 0; i < m_int_correspondencesNum; i++) {
       const float * pc = &m_v_pcs[3 * i];
       const float * pw = &m_v_pws[3 * i];
       for(int j = 0; j < 3; j++) {
@@ -350,22 +352,23 @@ namespace YDORBSLAM{
       pw0[j] /= m_int_correspondencesNum;
     }
     float abt[3 * 3] = {}, abt_d[3] = {}, abt_u[3 * 3] = {}, abt_v[3 * 3] = {};
-    cv::Mat ABt   = cv::Mat(3,3,CV_32F,abt);
-    cv::Mat ABt_D = cv::Mat(3,1,CV_32F,abt_d);
-    cv::Mat ABt_U = cv::Mat(3,3,CV_32F,abt_u);
-    cv::Mat ABt_V = cv::Mat(3,3,CV_32F,abt_v);
+    cv::Mat ABt    = cv::Mat(3,3,CV_32F,abt);
+    cv::Mat ABt_D  = cv::Mat(3,1,CV_32F,abt_d);
+    cv::Mat ABt_U  = cv::Mat(3,3,CV_32F,abt_u);
+    cv::Mat ABt_V  = cv::Mat(3,3,CV_32F,abt_v);
+    cv::Mat ABt_Vt = ABt_V.t();
     ABt.setTo(cv::Scalar::all(0.0f));
     for(int i = 0; i < m_int_correspondencesNum; i++) {
       float * pc = &m_v_pcs[3 * i];
       float * pw = &m_v_pws[3 * i];
-
       for(int j = 0; j < 3; j++) {
         abt[3 * j    ] += (pc[j] - pc0[j]) * (pw[0] - pw0[0]);
         abt[3 * j + 1] += (pc[j] - pc0[j]) * (pw[1] - pw0[1]);
         abt[3 * j + 2] += (pc[j] - pc0[j]) * (pw[2] - pw0[2]);
       }
     }
-    cv::SVD::compute(ABt, ABt_D, ABt_U, ABt_V.t(), cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+    cv::SVD::compute(ABt, ABt_D, ABt_U, ABt_Vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+    ABt_V = ABt_Vt.t();
     for(int i = 0; i < 3; i++){
       for(int j = 0; j < 3; j++){
         _rotation[i][j] = dot(abt_u + 3 * i, abt_v + 3 * j);
@@ -383,15 +386,15 @@ namespace YDORBSLAM{
     _translation[1] = pc0[1] - dot(_rotation[1], pw0);
     _translation[2] = pc0[2] - dot(_rotation[2], pw0);
   }
-  float PnPsolver::reprojection_error(const float _rotation[3][3], const float &_translation[3]){
+  float PnPsolver::reprojection_error(const float _rotation[3][3], const float _translation[3]){
     float squaredSum = 0.0;
     for(int i=0;i<m_int_correspondencesNum;i++){
       float * pw = &m_v_pws[3 * i];
       float Xc = dot(_rotation[0], pw) + _translation[0];
       float Yc = dot(_rotation[1], pw) + _translation[1];
-      float ue = uc + fu * Xc  / (dot(_rotation[2], pw) + _translation[2]);
-      float ve = vc + fv * Yc  / (dot(_rotation[2], pw) + _translation[2]);
-      float u = us[2 * i], v = us[2 * i + 1];
+      float ue = m_flt_uc + m_flt_fu * Xc  / (dot(_rotation[2], pw) + _translation[2]);
+      float ve = m_flt_vc + m_flt_fv * Yc  / (dot(_rotation[2], pw) + _translation[2]);
+      float u = m_v_us[2 * i], v = m_v_us[2 * i + 1];
       squaredSum += sqrt( (u - ue) * (u - ue) + (v - ve) * (v - ve) );
     }
     return squaredSum / m_int_correspondencesNum;
@@ -413,6 +416,7 @@ namespace YDORBSLAM{
     cv::Mat PW0tPW0 = cv::Mat(3, 3, CV_32F, pw0tpw0);
     cv::Mat DC      = cv::Mat(3, 1, CV_32F, dc);
     cv::Mat UCt     = cv::Mat(3, 3, CV_32F, uct);
+    cv::Mat UC      = UCt.t();
     cv::Mat VCt     = cv::Mat(3, 3, CV_32F);
     for(int i=0;i<m_int_correspondencesNum;i++){
       for(int j=0;j<3;j++){
@@ -420,7 +424,8 @@ namespace YDORBSLAM{
       }
     }
     cv::mulTransposed(PW0,PW0tPW0,true);
-    cv::SVD::compute(PW0tPW0, DC, UCt.t(), VCt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+    cv::SVD::compute(PW0tPW0, DC, UC, VCt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+    UCt = UC.t();
     PW0.release();
     for(int i=1;i<4;i++){
       float k = sqrt(dc[i-1]/m_int_correspondencesNum);
@@ -444,13 +449,12 @@ namespace YDORBSLAM{
     for(int i=0;i<m_int_correspondencesNum;i++) {
       float *pi = &m_v_pws[0] + 3 * i;
       float *a  = &m_v_alphas[0] + 4 * i;
-
       for(int j=0;j<3;j++)
       {
         a[1 + j] =
-          ci[3 * j    ] * (pi[0] - cws[0][0]) +
-          ci[3 * j + 1] * (pi[1] - cws[0][1]) +
-          ci[3 * j + 2] * (pi[2] - cws[0][2]);
+          ci[3 * j    ] * (pi[0] - m_vv_cws[0][0]) +
+          ci[3 * j + 1] * (pi[1] - m_vv_cws[0][1]) +
+          ci[3 * j + 2] * (pi[2] - m_vv_cws[0][2]);
       }
       a[0] = 1.0f - a[1] - a[2] - a[3];
     }
@@ -492,7 +496,7 @@ namespace YDORBSLAM{
       _betas[0] = sqrt(-b3[0]);
       _betas[1] = (b3[2]<0) ? sqrt(-b3[2]) : 0.0;
     }else{
-      _betas[0] = sqrt(b4[0]);
+      _betas[0] = sqrt(b3[0]);
       _betas[1] = (b3[2]>0) ? sqrt(b3[2]) : 0.0;
     }
     if (b3[1]<0) _betas[0] = -_betas[0];
@@ -525,8 +529,8 @@ namespace YDORBSLAM{
   void PnPsolver::qr_solve(cv::Mat &_A, cv::Mat &_b, cv::Mat &_X){
     static int max_nr = 0;
     static float *A1, *A2;
-    const int nr = _A->rows;
-    const int nc = _A->cols;
+    const int nr = _A.rows;
+    const int nc = _A.cols;
     if(nc<=0 || nr<=0){
       return;
     }
@@ -554,7 +558,7 @@ namespace YDORBSLAM{
         //cerr << "God damnit, A is singular, this shouldn't happen." << endl;
         return;
       }else{
-        float *ppAik2 = ppAkk, squaredSum = 0.0; inv_eta = 1.0 / eta;
+        float *ppAik2 = ppAkk, squaredSum = 0.0, inv_eta = 1.0 / eta;
         for(int i=k;i<nr;i++){
           *ppAik2 *= inv_eta;
           squaredSum += *ppAik2 * *ppAik2;
@@ -600,7 +604,7 @@ namespace YDORBSLAM{
       ppAjj += nc + 1;
     }
     // X = R-1 b
-    float *pX = (float)_X.data;
+    float *pX = (float*)_X.data;
     pX[nc - 1] = pb[nc - 1] / A2[nc - 1];
     for(int i=nc-2;i>=0;i--){
       float * ppAij = pA + i * nc + (i + 1), sum = 0;

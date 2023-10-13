@@ -11,11 +11,12 @@
 #define YDORBSLAM_PNP_HPP
 
 #include <memory>
+#include <vector>
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/types_c.h>
 #include <opencv2/imgproc/types_c.h>
-#include "mapPoint.h"
-#include "frame.h"
+#include "mapPoint.hpp"
+#include "frame.hpp"
 
 namespace YDORBSLAM{
   class PnPsolver{
@@ -32,7 +33,7 @@ namespace YDORBSLAM{
     void reset_correspondences(void);
     void add_correspondence(const float &_flt_3DX, const float &_flt_3DY, const float &_flt_3DZ, const float &_flt_2DX, const float &_flt_2DY);
     void compute_pose(cv::Mat &_rotation, cv::Mat &_translation);
-    float reprojection_error(const float _rotation[3][3], const float &_translation[3]);
+    float reprojection_error(const float _rotation[3][3], const float _translation[3]);
     void choose_control_points(void);
     void compute_barycentric_coordinates(void);
     void fill_M(cv::Mat &_M, const int &_row, const std::vector<float> &_alphas, const float &_u, const float &_v);
@@ -44,7 +45,7 @@ namespace YDORBSLAM{
     void find_betas_approx_3(const cv::Mat &_L_6x10, const cv::Mat &_Rho, float *_betas);
     void qr_solve(cv::Mat &_A, cv::Mat &_b, cv::Mat &_X);
     float dot(const float *_v1, const float *_v2);
-    float dist2(const float *_p1, const float *_p2);
+    float dist2(const std::vector<float> &_p1, const std::vector<float> &_p2);
     void compute_rho(float *_rho);
     void compute_L_6x10(const float *_u, float *_l_6x10);
     void gauss_newton(const cv::Mat &_L_6x10, const cv::Mat &_Rho, float _current_betas[4]);
@@ -55,8 +56,8 @@ namespace YDORBSLAM{
     std::vector<float> m_v_pws, m_v_us, m_v_alphas, m_v_pcs;
     int m_int_maxCorrespondencesNum = 0;
     int m_int_correspondencesNum = 0; 
-    std::vector<std::vector<float>> m_vv_cws = std::vector<std::vector<int>>(4,std::vector<int>(3));
-    std::vector<std::vector<float>> m_vv_ccs = std::vector<std::vector<int>>(4,std::vector<int>(3));
+    std::vector<std::vector<float>> m_vv_cws = std::vector<std::vector<float>>(4,std::vector<float>(3));
+    std::vector<std::vector<float>> m_vv_ccs = std::vector<std::vector<float>>(4,std::vector<float>(3));
     float m_flt_cws_determinant;
     std::vector<std::shared_ptr<MapPoint>> m_v_matchedMapPoints;
     //2d points
@@ -76,7 +77,7 @@ namespace YDORBSLAM{
     int m_int_currentRansacIterNum = 0;
     std::vector<bool> m_v_isBestInliers;
     int m_int_bestInliersNum = 0;
-    cv::Mat m_bestT_c2w;
+    cv::Mat m_cvMat_bestT_c2w;
     //refined
     cv::Mat m_cvMat_refinedT_c2w;
     std::vector<bool> m_v_isRefinedInliers;
