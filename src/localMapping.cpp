@@ -320,9 +320,77 @@ namespace YDORBSLAM{
     }
     return false;
   }
-  bool LocalMapping::isStopped(){
+  bool LocalMapping::setNotStop(bool _b_flag){
     std::unique_lock<std::mutex> lock(m_mutex_stop);
-    return m_b_isStopped;
+    if(_b_flag && m_b_isStopped){
+      return false;
+    }else {
+      m_b_isNotStoped = _b_flag;
+      return true;
+    }
   }
-  //stop here
+  void LocalMapping::requestReset(){
+    {
+      std::unique_lock<std::mutex> lock(m_mutex_reset);
+        m_b_isResetRequested = true;
+    }
+    while(true){
+      {
+        std::unique_lock<std::mutex> lock2(m_mutex_reset);
+        if(!m_b_isResetRequested){
+          break;
+        }
+      }
+      usleep(3000);
+    }
+  }
+  void LocalMapping::resetIfRequested(){
+    std::unique_lock<std::mutex> lock(m_mutex_reset);
+    if(m_b_isResetRequested)
+    {
+      m_list_newKeyFrames.clear();
+      m_list_recentAddedMapPoints.clear();
+      m_b_isResetRequested=false;
+    }
+  }
+  cv::Mat LocalMapping::skewSymmetricMatrix(const cv::Mat &_cvMat_vec){
+    return (cv::Mat_<float>(3,3) << 0,                        -_cvMat_vec.at<float>(2),  _cvMat_vec.at<float>(1),
+                                     _cvMat_vec.at<float>(2),                        0, -_cvMat_vec.at<float>(0),
+                                    -_cvMat_vec.at<float>(1),  _cvMat_vec.at<float>(0),                       0);
+  }
+  void LocalMapping::cullKeyFrame(){
+    //check redundant key frames (only local key frames)
+    //a key frame is considered redundant if 90% of the map points it sees are seen in at least 3 other key frames (int the same or finer scale)
+    //we only consider close stereo points
+    for(std::shared_ptr<KeyFrame> &localKeyFrame : m_sptr_currentKeyFrame->getOrderedConnectedKeyFrames()){
+      if(localKeyFrame->m_int_keyFrameID!=0){
+        const int observationNumThd = 3;
+        int redundantObservationNum = 0;
+        int mapPointsNum = 0;
+        const std::vector<std::shared_ptr<MapPoint>> vMatchedMapPoints = localKeyFrame->getMatchedMapPointsVec();
+        for(int i=0;i<vMatchedMapPoints.size();i++){
+          if(vMatchedMapPoints[i] && !vMatchedMapPoints[i]->isBad() && localKeyFrame->m_v_depth[i]<=localKeyFrame->m_flt_depthThd && localKeyFrame->m_v_depth[i]>=0.0){
+            mapPointsNum++;
+            if(vMatchedMapPoints[i]->getObservationsNum() > observationNumThd){
+              int observationNum = 0;
+              for(std::pair<std::shared_ptr<KeyFrame>,int> &localMapPointObs : vMatchedMapPoints[i]->getObservations()){
+                if(localMapPointObs.first != localKeyFrame && localMapPointObs.first->m_v_keyPoints[localMapPointObs.second].octave <= localKeyFrame->m_v_keyPoints[i] + 1){
+                  observationNum++;
+                  if(observationNum>=observationNumThd){
+                    break;
+                  }
+                }
+              }
+              if(observationNum>=observationNumThd){
+                redundantObservationNum++;
+              }
+            }
+          }
+        }
+        if(redundantObservationNum > 0.9 * mapPointsNum){
+          localKeyFrame->setBadFlag();
+        }
+      }
+    }
+  }
 }//namespace YDORBSLAM
