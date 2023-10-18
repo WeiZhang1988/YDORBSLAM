@@ -19,9 +19,9 @@
 namespace YDORBSLAM{
 
 LoopClosing::LoopClosing(std::shared_ptr<Map> _sptrMap, std::shared_ptr<KeyFrameDatabase> _sptrDB, std::shared_ptr<DBoW3::Vocabulary> _sptrVoc, const bool& _bFixScale):\
-m_b_resetRequested(false){
-  m_int_covisibilityConsistencyTh = 3;
-}
+m_b_resetRequested(false), m_b_finishRequested(false), m_b_finished(true), m_sptrMap(_sptrMap), m_sptrKeyFrameDB(_sptrDB), m_sptrORBVocabulary(_sptrVoc), \
+m_sptrCurrentClosedLoopMatchedKF(nullptr), m_int_lastLoopKFid(0), m_b_runningGlobalBA(false), m_b_finishedGlobalBA(true), \
+m_b_stopGlobalBA(false), m_sptrThreadGlobalBA(nullptr), m_b_fixScale(_bFixScale), m_int_fullBAIdx(0){}
 
 void LoopClosing::run(){
   m_b_finished = false;

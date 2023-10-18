@@ -97,7 +97,7 @@ class LoopClosing : public stack_compatible_enable_shared_from_this<LoopClosing>
   std::list<std::shared_ptr<KeyFrame>> m_l_sptrLoopKeyFrameBufferQueue;
   std::mutex m_mutex_loopQueue;
   // Loop detector parameters
-  int m_int_covisibilityConsistencyTh;
+  const int m_int_covisibilityConsistencyTh = 3;
   // Loop detector variables
   std::shared_ptr<KeyFrame> m_sptrCurrentLoopKF;
   std::shared_ptr<KeyFrame> m_sptrCurrentClosedLoopMatchedKF;
