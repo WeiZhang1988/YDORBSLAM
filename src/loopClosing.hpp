@@ -70,7 +70,10 @@ class LoopClosing : public stack_compatible_enable_shared_from_this<LoopClosing>
   // EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   protected:
-  bool checkNewKeyFrames();
+  inline bool checkNewKeyFrames(){
+    std::unique_lock<std::mutex> lock(m_mutex_loopQueue);
+    return(!m_l_sptrLoopKeyFrameBufferQueue.empty());
+  }
   bool detectLoop();
   bool computeSim3();
   void searchAndFuse(const sptrKeyFrameAndPose& _correctedPosesMap);

@@ -42,6 +42,13 @@ void LoopClosing::run(){
   setFinish();
 }
 
+void LoopClosing::insertKeyFrame(std::shared_ptr<KeyFrame> _sptrKF){
+  std::unique_lock<std::mutex> lock(m_mutex_loopQueue);
+  if(_sptrKF->m_int_keyFrameID != 0){
+    m_l_sptrLoopKeyFrameBufferQueue.push_back(_sptrKF);
+  }
+}
+
 bool LoopClosing::detectLoop(){
   {
     std::unique_lock<std::mutex> lock(m_mutex_loopQueue);
@@ -379,7 +386,7 @@ void LoopClosing::correctLoop(){
   m_int_lastLoopKFid = m_sptrCurrentLoopKF->m_int_keyFrameID;
 }
 
-void searchAndFuse(const sptrKeyFrameAndPose& _correctedPosesMap){
+void LoopClosing::searchAndFuse(const sptrKeyFrameAndPose& _correctedPosesMap){
   OrbMatcher matcher(0.8);
   for(const std::pair<std::shared_ptr<KeyFrame>,g2o::Sim3>& poseMap : _correctedPosesMap){
     cv::Mat cvMatScw = Converter::transform_Sim3_cvMat(poseMap.second);
@@ -397,7 +404,7 @@ void searchAndFuse(const sptrKeyFrameAndPose& _correctedPosesMap){
   }
 }
 
-void LoopClosing::RequestReset(){
+void LoopClosing::requestReset(){
   {
     std::unique_lock<std::mutex> lock(m_mutex_reset);
     m_b_resetRequested = true;
