@@ -60,7 +60,10 @@ namespace YDORBSLAM{
       return m_b_isFinished;
     }
     protected:
-    bool checkNewKeyFrames();
+    inline bool checkNewKeyFrames(){
+      std::unique_lock<std::mutex> lock(m_mutex_loopQueue);
+      return(!m_list_keyFrameBufferQueue.empty());
+    }
     bool detectLoop();
     bool computeSim3();
     void searchAndFuse(const KeyFrameAndPose &_correctedPosesMap);
@@ -74,18 +77,18 @@ namespace YDORBSLAM{
       std::unique_lock<std::mutex> lock(m_mutex_finish);
       m_b_isFinished = true;
     }
-    bool m_b_isResetRequested;
-    bool m_b_isFinishRequested;
-    bool m_b_isFinished;
+    bool m_b_isResetRequested = false;
+    bool m_b_isFinishRequested = false;
+    bool m_b_isFinished = true;
     std::shared_ptr<Map> m_sptr_map;
     std::shared_ptr<Tracking> m_sptr_tracker;
     std::shared_ptr<KeyFrameDatabase> m_sptr_keyFrameDB;
     std::shared_ptr<DBoW3::Vocabulary> m_sptr_voc;
     std::shared_ptr<LocalMapping> m_sptr_localMapper;
     std::list<std::shared_ptr<KeyFrame>> m_list_keyFrameBufferQueue;
-    float m_int_connectionConsistencyThd;
+    int m_int_connectionConsistencyThd = 3;
     std::shared_ptr<KeyFrame> m_sptr_currentLoopKeyFrame;
-    std::shared_ptr<KeyFrame> m_sptr_currentMatchedKeyFrame;
+    std::shared_ptr<KeyFrame> m_sptr_currentMatchedKeyFrame = std::shared_ptr<KeyFrame>(nullptr);
     std::vector<KeyFrameAndNum> m_v_lastConsistentGroups;
     std::vector<std::shared_ptr<KeyFrame>> m_v_consistentCandidates;
     std::vector<std::shared_ptr<KeyFrame>> m_v_connectedKeyFrames;
@@ -93,11 +96,11 @@ namespace YDORBSLAM{
     std::vector<std::shared_ptr<MapPoint>> m_v_loopMapPoints;
     cv::Mat m_cvMat_sim3_c2w;
     g2o::Sim3 m_g2o_sim3_c2w;
-    long int m_int_lastLoopKeyFrameID;
+    long int m_int_lastLoopKeyFrameID = 0;
     int m_int_fullBAIndex;
-    bool m_b_isRunningGlobalBA, m_b_isGlobalBAFinished, m_b_isGlobalBAStopped, m_b_isScaleFixed;
+    bool m_b_isRunningGlobalBA = false, m_b_isGlobalBAFinished = true, m_b_isGlobalBAStopped = false, m_b_isScaleFixed;
     std::mutex m_mutex_reset, m_mutex_finish, m_mutex_loopQueue, m_mutex_globalBA;
-    std::shared_ptr<std::thread> m_sptr_globalBAThread;
+    std::shared_ptr<std::thread> m_sptr_globalBAThread = std::shared_ptr<std::thread>(nullptr);
   };
 }//namespace YDORBSLAM
 
