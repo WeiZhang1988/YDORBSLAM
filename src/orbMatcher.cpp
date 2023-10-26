@@ -679,7 +679,7 @@ namespace YDORBSLAM{
     }
     return foundNum;
   }
-  int OrbMatcher::FuseByProjection(std::shared_ptr<KeyFrame> _sptrKeyFrame, const std::vector<std::shared_ptr<MapPoint>> _vSptrMapPoints, const float _thd){
+  int OrbMatcher::fuseByProjection(std::shared_ptr<KeyFrame> _sptrKeyFrame, const std::vector<std::shared_ptr<MapPoint>> _vSptrMapPoints, const float _thd){
     cv::Mat rotation_c2w        = _sptrKeyFrame->getRotation_c2w();
     cv::Mat translation_c2w     = _sptrKeyFrame->getTranslation_c2w();
     cv::Mat cameraOriginInWorld = _sptrKeyFrame->getCameraOriginInWorld();
@@ -743,7 +743,7 @@ namespace YDORBSLAM{
     }
     return fuseNum;
   }
-  int OrbMatcher::FuseBySim3(std::shared_ptr<KeyFrame> _sptrKeyFrame, cv::Mat &_sim_c2w, const std::vector<std::shared_ptr<MapPoint>> &_vSptrMapPoints, float _thd, std::vector<std::shared_ptr<MapPoint>> &_vSptrReplacement){
+  int OrbMatcher::fuseBySim3(std::shared_ptr<KeyFrame> _sptrKeyFrame, cv::Mat &_sim_c2w, const std::vector<std::shared_ptr<MapPoint>> &_vSptrMapPoints, float _thd, std::vector<std::shared_ptr<MapPoint>> &_vSptrReplacement){
     //decompose _sim_c2w
     cv::Mat simScaledRotation_c2w   = _sim_c2w.rowRange(0,3).colRange(0,3);
     const float simScale_c2w        = sqrt(simScaledRotation_c2w.row(0).dot(simScaledRotation_c2w.row(0)));

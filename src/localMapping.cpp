@@ -320,6 +320,16 @@ namespace YDORBSLAM{
     }
     return false;
   }
+  void LocalMapping::release(){
+    std::unique_lock<std::mutex> lock(m_mutex_stop);
+    std::unique_lock<std::mutex> lock2(m_mutex_finish);
+    if(!m_b_isFinished){
+      m_b_isStopped = false;
+      m_b_isStopRequested = false;
+      m_list_newKeyFrames.clear();
+      std::cout << "Local Mapping RELEASE" << std::endl;
+    }    
+  }
   bool LocalMapping::setNotStop(bool _b_flag){
     std::unique_lock<std::mutex> lock(m_mutex_stop);
     if(_b_flag && m_b_isStopped){

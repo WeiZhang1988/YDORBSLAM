@@ -51,9 +51,9 @@ namespace YDORBSLAM{
     //in stereo and rgb-d case, s12 = 1
     int searchBySim3(std::shared_ptr<KeyFrame> _sptrFirstKeyFrame, std::shared_ptr<KeyFrame> _sptrSecondKeyFrame, std::vector<std::shared_ptr<MapPoint>> &_vSptrMatchedMapPoints, const float &_scale_first2second, const cv::Mat &_rotation_first2second, const cv::Mat &_translation_first2second, const float _thd);
     //project map points into key frame and search for duplicated map points
-    int FuseByProjection(std::shared_ptr<KeyFrame> _sptrKeyFrame, const std::vector<std::shared_ptr<MapPoint>> _vSptrMapPoints, const float _thd=3.0);
+    int fuseByProjection(std::shared_ptr<KeyFrame> _sptrKeyFrame, const std::vector<std::shared_ptr<MapPoint>> _vSptrMapPoints, const float _thd=3.0);
     //project map points into key frame using a given Sim3 and search for duplicated map points
-    int FuseBySim3(std::shared_ptr<KeyFrame> _sptrKeyFrame, cv::Mat &_sim_c2w, const std::vector<std::shared_ptr<MapPoint>> &_vSptrMapPoints, float _thd, std::vector<std::shared_ptr<MapPoint>> &_vSptrReplacement);
+    int fuseBySim3(std::shared_ptr<KeyFrame> _sptrKeyFrame, cv::Mat &_sim_c2w, const std::vector<std::shared_ptr<MapPoint>> &_vSptrMapPoints, float _thd, std::vector<std::shared_ptr<MapPoint>> &_vSptrReplacement);
     static const int m_int_highThd;
     static const int m_int_lowThd;
     static const int m_int_histLen;

@@ -13,6 +13,7 @@
 #include <g2o/core/eigen_types.h>
 #include <g2o/types/sba/types_six_dof_expmap.h>
 #include <g2o/types/sim3/types_seven_dof_expmap.h>
+#include "stack_compatible_enable_shared_from_this.hpp"
 
 #include <thread>
 #include <mutex>
@@ -23,7 +24,7 @@ namespace YDORBSLAM{
   class Tracking;
   class LocalMapping;
   class KeyFrameDatabase;
-  class LoopClosing{
+  class LoopClosing : public stack_compatible_enable_shared_from_this<LoopClosing>{
     public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     //consistent group is a set of connected key frames of current key frame

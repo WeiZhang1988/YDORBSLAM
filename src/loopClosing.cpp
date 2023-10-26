@@ -287,9 +287,160 @@ namespace YDORBSLAM{
             sptrMapPoint->updateNormalAndDepth();
           }
         }
+        //update keyframe pose
+        correctedSim3.first->setCameraPoseByTransform_c2w(Converter::transform_eigen_cvMat(correctedSim3.second.rotation().toRotationMatrix(),correctedSim3.second.translation()/correctedSim3.second.scale()));
+        correctedSim3.first->updateConnections();
       }
-      //update keyframe pose
-      //stop here
+      //start loop function
+      //update matched map points and replace if duplicated
+      for(int i=0;i<m_v_matchedMapPoints.size();i+){
+        if(m_v_matchedMapPoints[i]){
+          if(m_sptr_currentLoopKeyFrame->getMapPoint(i)){
+            m_sptr_currentLoopKeyFrame->getMapPoint(i)->beReplacedBy(m_v_matchedMapPoints[i]);
+          }else{
+            m_sptr_currentLoopKeyFrame->addMapPoint(m_v_matchedMapPoints[i],i);
+            m_v_matchedMapPoints[i]->addObservation(m_sptr_currentLoopKeyFrame,i);
+            m_v_matchedMapPoints[i]->computeDistinctiveDescriptors();
+          }
+        }
+      }
+    }
+    //project map points observed in the connection of the loop key frame
+    //into the current key frame and connections using corrected poses
+    //fuse duplications
+    searchAndFuse(correctedSim3s);
+    //after the map point fused, new links in the connection graph will apprea attaching both sides of the loop
+    std::map<std::shared_ptr<KeyFrame>,std::set<std::shared_ptr<KeyFrame>>> loopConnections;
+    for(std::shared_ptr<KeyFrame> &connectedKeyFrame : m_v_connectedKeyFrames){
+      //update connections. detect new links
+      connectedKeyFrame->updateConnections();
+      loopConnections[connectedKeyFrame] = connectedKeyFrame->getConnectedKeyFrames();
+      for(std::shared_ptr<KeyFrame> &preConnectedKeyFrame : connectedKeyFrame->getOrderedConnectedKeyFrames()){
+        loopConnections[connectedKeyFrame].erase(preConnectedKeyFrame);
+      }
+      for(std::shared_ptr<KeyFrame> &updatedConnectedKeyFrame : m_v_connectedKeyFrames){
+        loopConnections[connectedKeyFrame].erase(updatedConnectedKeyFrame);
+      }
+    }
+    //optimize graph
+    Optimizer::optimizeEssentialGraph(m_sptr_map,m_sptr_currentMatchedKeyFrame,m_sptr_currentLoopKeyFrame,nonCorrectedSim3s,correctedSim3s,loopConnections,m_b_isScaleFixed);
+    m_sptr_map->informNewBigChange();
+    //add loop edge
+    m_sptr_currentMatchedKeyFrame->addLoopEdge(m_sptr_currentLoopKeyFrame);
+    m_sptr_currentLoopKeyFrame->addLoopEdge(m_sptr_currentMatchedKeyFrame);
+    //launch a new thread to perform global bundle adjustment
+    m_b_isRunningGlobalBA = true;
+    m_b_isGlobalBAFinished = false;
+    m_b_isGlobalBAStopped = false;
+    m_sptr_globalBAThread = std::make_shared<thread>(&LoopClosing::runGlobalBundleAdjustment,shared_from_this(),m_sptr_currentLoopKeyFrame->m_int_keyFrameID);
+    m_sptr_localMapper->release();
+    m_int_lastLoopKeyFrameID = m_sptr_currentLoopKeyFrame->m_int_keyFrameID;
+  }
+  void LoopClosing::searchAndFuse(const KeyFrameAndPose &_correctedPosesMap){
+    OrbMatcher matcher(0.8);
+    for(const std::pair<std::shared_ptr<KeyFrame>,g2o::Sim3>& poseMap : _correctedPosesMap){
+      std::vector<std::shared_ptr<MapPoint>> vBeingReplacedMapPoints(m_v_loopMapPoints.size(),static_cast<std::shared_ptr<MapPoint>>(nullptr));
+      matcher.fuseBySim3(poseMap.first,Converter::toCvMat(poseMap.second),m_v_loopMapPoints,4,vBeingReplacedMapPoints);
+      //get map mutex
+      std::unique_lock<std::mutex> lock(m_sptr_map->m_mutex_updateMap);
+      for(int i=0;i<m_v_loopMapPoints.size();i++){
+        if(vBeingReplacedMapPoints[i]){
+          vBeingReplacedMapPoints[i]->beReplacedBy(m_v_loopMapPoints[i]);
+        }
+      }
     }
   }
-}
+  void LoopClosing::requestReset(){
+    {
+      std::unique_lock<std::mutex> lock(m_mutex_reset);
+      m_b_isResetRequested = true;
+    }
+    while(true){
+      {
+        std::unique_lock<std::mutex> lock2(m_mutex_reset);
+        if(!m_b_isResetRequested){
+          break;
+        }
+      }
+      usleep(5000);
+    }
+  }
+  void LoopClosing::resetIfRequested(){
+    std::unique_lock<std::mutex> lock(m_mutex_reset);
+    if(m_b_isResetRequested)
+    {
+      m_list_keyFrameBufferQueue.clear();
+      m_int_lastLoopKeyFrameID=0;
+      m_b_isResetRequested=false;
+    }
+  }
+  void LoopClosing::runGlobalBundleAdjustment(long int _int_loopKeyFrameID){
+    std::cout << "starting global bundle adjustment..." << std::endl;
+    int idx = m_int_fullBAIndex;
+    Optimizer::globalBundleAdjust(m_sptr_map,10,m_b_isGlobalBAStopped,_int_loopKeyFrameID,false);
+    //update all map points and key frames
+    //local mapping was active during BA, which means that there might be new key frames not included in the global BA
+    //and they are not consistent with the updated map
+    //correction through the spanning tree needs to be propagated
+    {
+      std::unique_lock<std::mutex> lock(m_mutex_globalBA);
+      if(idx == m_int_fullBAIndex){
+        if(!m_b_isGlobalBAStopped){
+          std::cout << "global bundle adjustment finished" << std::endl;
+          std::cout << "updating map ..." << std::endl;
+          m_sptr_localMapper->requestStop();
+          //wait untile local mapping has effectively stopped
+          while(!m_sptr_localMapper->isStopped() && !m_sptr_localMapper->isFinished()){
+            usleep(1000);
+          }
+          //get map mutex
+          std::unique_lock<std::mutex> lock((m_sptr_map->m_mutex_updateMap);
+          //correct key frames starting at map first key frame
+          std::list<std::shared_ptr<KeyFrame>> listKeyFramesToBeChecked(m_sptr_map->m_v_sptrOriginalKeyFrames.begin(),m_sptr_map->m_v_sptrOriginalKeyFrames.end());
+          while(!listKeyFramesToBeChecked.empty()){
+            std::shared_ptr<KeyFrame> firstKeyFrame = listKeyFramesToBeChecked.front();
+            const std::set<std::shared_ptr<KeyFrame>> children = pKF->getChildren();
+            for(const std::shared_ptr<KeyFrame> &childKeyFrame : children){
+              if(childKeyFrame->m_int_globalBAForKeyFrameID!=_int_loopKeyFrameID){
+                childKeyFrame->m_cvMat_T_c2w_GlobalBA = childKeyFrame->getCameraPoseByTransrom_c2w * firstKeyFrame->getInverseCameraPoseByTransform_w2c() * firstKeyFrame->m_cvMat_T_c2w_GlobalBA;
+                childKeyFrame->m_int_globalBAForKeyFrameID = _int_loopKeyFrameID;
+              }
+              listKeyFramesToBeChecked.push_back(childKeyFrame);
+            }
+            firstKeyFrame->m_cvMat_T_c2w_beforeGlobalBA = firstKeyFrame->getCameraPoseByTransrom_c2w();
+            firstKeyFrame->setCameraPoseByTransform_c2w(firstKeyFrame->m_cvMat_T_c2w_GlobalBA);
+            listKeyFramesToBeChecked.pop_front();
+          }
+          //coorect map points
+          for(const std::shared_ptr<MapPoint> &mapPoint : m_sptr_map->getAllMapPoints()){
+            if(mapPoint && !mapPoint->isBad()){
+              if(mapPoint->m_int_globalBAforKeyFrameID == _int_loopKeyFrameID){
+                //if optimized by global BA just update
+                mapPoint->setPosInWorld(mapPoint->m_cvMat_posGlobalBA);
+              }else{
+                //update according to the correction of its reference key frame
+                std::shared_ptr<KeyFrame> referenceKeyFrame = mapPoint->getReferenceKeyFrame();
+                if(referenceKeyFrame->m_int_globalBAForKeyFrameID!==_int_loopKeyFrameID){
+                  // Map to non-corrected camera
+                  cv::Mat rotation_c2w = referenceKeyFrame->m_cvMat_T_c2w_beforeGlobalBA.rowRange(0,3).colRange(0,3);
+                  cv::Mat translation_c2w = referenceKeyFrame->m_cvMat_T_c2w_beforeGlobalBA.rowRange(0,3).col(3);
+                  cv::Mat cameraInWorld = rotation_c2w*mapPoint->getPosInWorld()+translation_c2w;
+                  // Backproject using corrected camera
+                  cv::Mat Tansform_w2c = referenceKeyFrame->getInverseCameraPoseByTransform_w2c();
+                  cv::Mat rotation_w2c = Tansform_w2c.rowRange(0,3).colRange(0,3);
+                  cv::Mat translation_w2c = Tansform_w2c.rowRange(0,3).col(3)
+                  mapPoint->setPosInWorld(rotation_w2c * cameraInWorld + translation_w2c);
+                }
+              }
+            }
+          }
+          m_sptr_map->informNewBigChange();
+          m_sptr_localMapper->release();
+          std::cout << "map updated!" << std::endl;
+        }
+        m_b_isGlobalBAFinished = true;
+        m_b_isRunningGlobalBA = false;
+      }
+    }
+  }
+}//namespace YDORBSLAM
