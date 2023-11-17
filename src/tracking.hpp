@@ -16,10 +16,12 @@
 #include "frame.hpp"
 #include "keyFrameDatabase.hpp"
 #include "orbExtractor.hpp"
+#include "orbMatcher.hpp"
 #include "system.hpp"
-#include "Viewer.h"
-#include "frameDrawer.h"
-#include "MapDrawer.h"
+#include "viewer.hpp"
+#include "frameDrawer.hpp"
+#include "mapDrawer.hpp"
+#include "enumclass.hpp"
 #include "stack_compatible_enable_shared_from_this.hpp"
 #include <string>
 #include <vector>
@@ -34,10 +36,10 @@ namespace YDORBSLAM{
   class LocalMapping;
   class LoopClosing;
   class System;
-  class Tracking{
+  class Tracking : public stack_compatible_enable_shared_from_this<Tracking>{
     public:
     Tracking(std::shared_ptr<System> _sptrSys, std::shared_ptr<DBoW3::Vocabulary> _sptrVoc, std::shared_ptr<FrameDrawer> _sptrFrameDrawer, std::shared_ptr<MapDrawer> _sptrMapDrawer, std::shared_ptr<Map> _sptrMap, \
-    std::shared_ptr<KeyFrameDatabase> _sptrKeyFrameDatabase, const System::Sensor &_sensor, const string &_strSettingPath);
+    std::shared_ptr<KeyFrameDatabase> _sptrKeyFrameDatabase, const Sensor &_sensor, const std::string &_strSettingPath);
     //preprocess the input and call track(), extract key points and perform stereo matching.
     cv::Mat grabImageStereo(const cv::Mat &_leftImageRect, const cv::Mat &_rightImageRect, const double &_timestamp);
     cv::Mat grabImageRGBD(const cv::Mat &_rgbImage, const cv::Mat &_depthImage, const double &_timestamp);
@@ -47,16 +49,9 @@ namespace YDORBSLAM{
     void changeIntParMat(const std::string &_strSettingPath);
     void informOnlyTracking(const bool &_flag);
     void reset();
-    enum class TrackingState{
-      SYSTEM_NOT_READY,
-      NO_IMAGE_YET,
-      NOT_INITIALIZED,
-      OK,
-      LOST
-    };
     TrackingState m_ts_state = TrackingState::NO_IMAGE_YET;
     TrackingState m_ts_lastProcessedState;
-    System::Sensor m_sys_sensor;
+    Sensor m_sys_sensor;
     Frame m_frame_currentFrame;
     cv::Mat m_cvMat_grayImage;
     //lists to recover the full camera trajectory at the end of execution
@@ -113,7 +108,8 @@ namespace YDORBSLAM{
     std::shared_ptr<Map> m_sptr_map;
     //calibration matrix
     cv::Mat m_cvMat_intParMat = cv::Mat::eye(3,3,CV_32F);;
-    cv::Mat m_cvMat_leftImageDistCoef(5,1,CV_32F), m_cvMat_rightImageDistCoef(5,1,CV_32F);
+    cv::Mat m_cvMat_leftImageDistCoef = cv::Mat::zeros(5,1,CV_32F);
+    cv::Mat m_cvMat_rightImageDistCoef = cv::Mat::zeros(5,1,CV_32F);
     float m_flt_baseLineTimesFx;
     //new key frame rules according to fps
     int m_int_minFramesNum = 0;

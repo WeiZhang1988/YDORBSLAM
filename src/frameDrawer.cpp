@@ -16,7 +16,7 @@
 
 namespace YDORBSLAM{
 FrameDrawer::FrameDrawer(std::shared_ptr<Map> _sptrMap):m_sptrMap(_sptrMap){
-    m_int_state = Tracking::eTrackingState::NOT_CONFIGURATION;
+    m_tracking_state = TrackingState::SYSTEM_NOT_READY;
     m_cvMat_image = cv::Mat(480,640,CV_8UC3,cv::Scalar(0,0,0));
 }
 cv::Mat FrameDrawer::drawFrame(){
@@ -25,33 +25,33 @@ cv::Mat FrameDrawer::drawFrame(){
     std::vector<int> vnMatchedKeyPointID; // Initialization: correspondeces id with reference keypoints
     std::vector<cv::KeyPoint> vCurrentKeyPoints; // KeyPoints in current frame
     std::vector<bool> vbNonObservation, vbOwnObservation; // Tracked MapPoints in current frame
-    int state; // Tracking state
+    TrackingState state; // Tracking state
 
     //Copy variables within scoped mutex
     {
-        unique_lock<mutex> lock(m_copyMutex);
-        state = m_int_state;
-        if(m_int_state == Tracking::eTrackingState::NOT_CONFIGURATION){
-            m_int_state == Tracking::eTrackingState::NOT_INPUT_IMAGES;
+        std::unique_lock<std::mutex> lock(m_copyMutex);
+        state = m_tracking_state;
+        if(m_tracking_state == TrackingState::SYSTEM_NOT_READY){
+            m_tracking_state == TrackingState::NO_IMAGE_YET;
         }
         m_cvMat_image.copyTo(cvMatImage);
-        if(m_int_state == Tracking::eTrackingState::NOT_INITIALIZED){
+        if(m_tracking_state == TrackingState::NOT_INITIALIZED){
             vCurrentKeyPoints = m_v_cvMatCurrentKeyPoints;
         }
-        else if(m_int_state == Tracking::eTrackingState::TRACKING_SUCCESS){
+        else if(m_tracking_state == TrackingState::OK){
             vCurrentKeyPoints = m_v_cvMatCurrentKeyPoints;
             vbNonObservation = m_v_bNonObservation;
             vbOwnObservation = m_v_bOwnObservation;
         }
-        else if(m_int_state == Tracking::eTrackingState::TRACKING_FAIL){
+        else if(m_tracking_state == TrackingState::LOST){
             vCurrentKeyPoints = m_v_cvMatCurrentKeyPoints;
         }
     } // destroy scoped mutex -> release mutex
     if(cvMatImage.channels()<3){
-        cvtColor(cvMatImage,cvMatImage,COLOR_GRAY2BGR);
+        cvtColor(cvMatImage,cvMatImage,cv::COLOR_GRAY2BGR);
     } //this should be always true
     //Draw
-    if(m_int_state == Tracking::eTrackingState::NOT_INITIALIZED){
+    if(m_tracking_state == TrackingState::NOT_INITIALIZED){
         unsigned int ifor = 0;
         for(int& KeyPointID : vnMatchedKeyPointID){
             if(KeyPointID >= 0){
@@ -60,7 +60,7 @@ cv::Mat FrameDrawer::drawFrame(){
             ifor++;
         }
     }
-    else if(m_int_state == Tracking::eTrackingState::TRACKING_SUCCESS){
+    else if(m_tracking_state == TrackingState::OK){
         m_int_ownObservationMPNums = 0;
         m_int_nonObservationMPNums = 0;
         const float r = 5;
@@ -89,15 +89,15 @@ cv::Mat FrameDrawer::drawFrame(){
     drawTextInfo(cvMatImage,state,imWithInfo);
     return imWithInfo;
 }
-void FrameDrawer::drawTextInfo(cv::Mat &_image, int _nState, cv::Mat &_imageText){
+void FrameDrawer::drawTextInfo(cv::Mat &_image, TrackingState _nState, cv::Mat &_imageText){
     std::stringstream s;
-    if(_nState == Tracking::eTrackingState::NOT_INPUT_IMAGES){
+    if(_nState == TrackingState::NO_IMAGE_YET){
         s << " WAITING FOR IMAGES";
     }
-    else if(_nState == Tracking::eTrackingState::NOT_INITIALIZED){
+    else if(_nState == TrackingState::NOT_INITIALIZED){
         s << " TRYING TO INITIALIZE ";
     }
-    else if(_nState == Tracking::eTrackingState::TRACKING_SUCCESS){
+    else if(_nState == TrackingState::OK){
         if(!m_b_onlyLocalization){
             s << "SLAM MODE |  ";
         }else{
@@ -108,10 +108,10 @@ void FrameDrawer::drawTextInfo(cv::Mat &_image, int _nState, cv::Mat &_imageText
             s << ", + nonObservation matches: " << m_int_nonObservationMPNums;
         }
     }
-    else if(_nState == Tracking::eTrackingState::TRACKING_FAIL){
+    else if(_nState == TrackingState::LOST){
         s << " TRACK FAIL. TRYING TO RELOCALIZE ";
     }
-    else if(_nState == Tracking::eTrackingState::NOT_CONFIGURATION){
+    else if(_nState == TrackingState::SYSTEM_NOT_READY){
         s << " LOADING ORB VOCABULARY. PLEASE WAIT...";
     }
     int baseline = 0;
@@ -122,18 +122,18 @@ void FrameDrawer::drawTextInfo(cv::Mat &_image, int _nState, cv::Mat &_imageText
     cv::putText(_imageText,s.str(),cv::Point(5,_imageText.rows-5),cv::FONT_HERSHEY_PLAIN,1,cv::Scalar(255,255,255),1,8);
 }
 void FrameDrawer::update(std::shared_ptr<Tracking> _sptrTracker){
-    unique_lock<mutex> lock(m_copyMutex);
+    std::unique_lock<std::mutex> lock(m_copyMutex);
     _sptrTracker->m_cvMat_grayImage.copyTo(m_cvMat_image);
-    m_v_cvMatCurrentKeyPoints = _sptrTracker->m_currentFrame.m_v_keyPoints;
+    m_v_cvMatCurrentKeyPoints = _sptrTracker->m_frame_currentFrame.m_v_keyPoints;
     m_int_CurrentKeyPointNUM = m_v_cvMatCurrentKeyPoints.size();
     m_v_bNonObservation = std::vector<bool>(m_int_CurrentKeyPointNUM,false);
     m_v_bOwnObservation = std::vector<bool>(m_int_CurrentKeyPointNUM,false);
-    m_b_onlyLocalization = _sptrTracker->m_b_onlyLocalization;
+    m_b_onlyLocalization = _sptrTracker->m_b_isTrackingOnly;
 
-    if(_sptrTracker->m_enum_lastState == Tracking::eTrackingState::TRACKING_SUCCESS){
+    if(_sptrTracker->m_ts_lastProcessedState == TrackingState::OK){
         for(int i=0; i<m_int_CurrentKeyPointNUM; i++){
-            std::shared_ptr<MapPoint> sptrMP = _sptrTracker->m_currentFrame.m_v_sptrMapPoints[i];
-            if(sptrMP && !_sptrTracker->m_currentFrame.m_v_isOutliers[i]){
+            std::shared_ptr<MapPoint> sptrMP = _sptrTracker->m_frame_currentFrame.m_v_sptrMapPoints[i];
+            if(sptrMP && !_sptrTracker->m_frame_currentFrame.m_v_isOutliers[i]){
                 if(sptrMP->getObservationsNum() > 0){
                     m_v_bOwnObservation[i] = true;
                 }else{
@@ -142,7 +142,7 @@ void FrameDrawer::update(std::shared_ptr<Tracking> _sptrTracker){
             }
         }
     }
-    m_int_state = static_cast<int>(_sptrTracker->m_enum_lastState);
+    m_tracking_state = _sptrTracker->m_ts_lastProcessedState;
 }
 
 } //namespace ORB_SLAM

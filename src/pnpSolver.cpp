@@ -229,7 +229,7 @@ namespace YDORBSLAM{
     cv::Mat(3,3,CV_32F,Rs[N]).copyTo(_rotation);
   }
   void PnPsolver::fill_M(cv::Mat &_M, const int &_row, const std::vector<float> &_alphas, const float &_u, const float &_v){
-    float *M1 = M.ptr<float>(0) + _row * 12;
+    float *M1 = _M.ptr<float>(0) + _row * 12;
     float *M2 = M1 + 12;
     for(int i = 0; i < 4; i++) {
       M1[3 * i    ] = _alphas[i] * m_flt_fu;

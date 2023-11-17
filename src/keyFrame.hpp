@@ -83,8 +83,8 @@ namespace YDORBSLAM{
     int m_int_relocalizationWordsNum=0;
     float m_flt_relocalizationScore=0.0;
     //variables used by loop closing
-    cv::Mat m_cvMat_T_c2w_GBA;
-    cv::Mat m_cvMat_T_c2w_beforeGBA;
+    cv::Mat m_cvMat_T_c2w_GlobalBA;
+    cv::Mat m_cvMat_T_c2w_beforeGlobalBA;
     long int m_int_globalBAForKeyFrameID=0;
     //pose relative to parent, represented by tranformation from current camera to parent camera, computed when bad flag is activated
     cv::Mat m_cvMat_T_c2p;

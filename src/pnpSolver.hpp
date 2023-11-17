@@ -55,7 +55,6 @@ namespace YDORBSLAM{
     float m_flt_uc, m_flt_vc, m_flt_fu, m_flt_fv;
     std::vector<float> m_v_pws, m_v_us, m_v_alphas, m_v_pcs;
     int m_int_maxCorrespondencesNum = 0;
-    int m_int_correspondencesNum = 0; 
     std::vector<std::vector<float>> m_vv_cws = std::vector<std::vector<float>>(4,std::vector<float>(3));
     std::vector<std::vector<float>> m_vv_ccs = std::vector<std::vector<float>>(4,std::vector<float>(3));
     float m_flt_cws_determinant;

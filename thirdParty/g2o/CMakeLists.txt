@@ -362,7 +362,8 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${g2o_C_FLAGS}")
 # Find Eigen3. If it defines the target, this is used. If not,
 # fall back to the using the module form.
 # See https://eigen.tuxfamily.org/dox/TopicCMakeGuide.html for details
-find_package(Eigen3 3.3.9 EXACT REQUIRED NO_MODULE)
+find_package(Eigen3 3.3.9 EXACT REQUIRED NO_MODULE PATHS ../eigen/install)
+
 if (TARGET Eigen3::Eigen)
   set(G2O_EIGEN3_EIGEN_TARGET Eigen3::Eigen)
 else()

@@ -55,6 +55,7 @@ namespace YDORBSLAM
     m_cvMat_t_c2w             = _frame.m_cvMat_t_c2w.clone();
     m_cvMat_T_c2w             = _frame.m_cvMat_T_c2w.clone();
     m_cvMat_origin            = _frame.m_cvMat_origin.clone();
+    m_cvMat_T_w2c             = _frame.m_cvMat_T_w2c.clone();
   }
   Frame::Frame(const cv::Mat &_leftImage, const cv::Mat &_rightImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const cv::Mat &_rightImageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrLeftExtractor, std::shared_ptr<OrbExtractor> _sptrRightExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab):\
   m_sptr_vocab(_sptrVocab),m_sptr_leftOrbExtractor(_sptrLeftExtractor),m_sptr_rightOrbExtractor(_sptrRightExtractor),\
@@ -142,6 +143,45 @@ namespace YDORBSLAM
     }
     m_flt_baseLine = m_flt_baseLineTimesFx/m_flt_fx;
     assignKeyPointsToGrid();
+  }
+  Frame& Frame::operator=(const Frame &_frame){
+    m_sptr_vocab              = _frame.m_sptr_vocab;
+    m_sptr_leftOrbExtractor   = _frame.m_sptr_leftOrbExtractor;
+    m_sptr_rightOrbExtractor  = _frame.m_sptr_rightOrbExtractor;
+    m_d_timeStamp             = _frame.m_d_timeStamp;
+    m_flt_baseLineTimesFx     = _frame.m_flt_baseLineTimesFx;
+    m_flt_baseLine            = _frame.m_flt_baseLine;
+    m_flt_depthThd            = _frame.m_flt_depthThd;
+    m_int_keyPointsNum        = _frame.m_int_keyPointsNum;
+    m_v_keyPoints             = _frame.m_v_keyPoints;
+    m_v_rightKeyPoints        = _frame.m_v_rightKeyPoints;
+    m_v_rightXcords           = _frame.m_v_rightXcords;
+    m_v_depth                 = _frame.m_v_depth;
+    m_bow_wordVec             = _frame.m_bow_wordVec;
+    m_bow_keyPointsVec        = _frame.m_bow_keyPointsVec;
+    m_cvMat_descriptors       = _frame.m_cvMat_descriptors.clone();
+    m_cvMat_rightDescriptors  = _frame.m_cvMat_rightDescriptors.clone();
+    m_v_sptrMapPoints         = _frame.m_v_sptrMapPoints;
+    m_v_isOutliers            = _frame.m_v_isOutliers;
+    m_vvv_grid                = _frame.m_vvv_grid;
+    m_sptr_refKeyFrame        = _frame.m_sptr_refKeyFrame;
+    m_int_scaleLevelsNum      = _frame.m_int_scaleLevelsNum;
+    m_flt_scaleFactor         = _frame.m_flt_scaleFactor;
+    m_flt_logScaleFactor      = _frame.m_flt_logScaleFactor;
+    m_v_scaleFactors          = _frame.m_v_scaleFactors;
+    m_v_invScaleFactors       = _frame.m_v_invScaleFactors;
+    m_v_scaleFactorSquares    = _frame.m_v_scaleFactorSquares;
+    m_v_invScaleFactorSquares = _frame.m_v_invScaleFactorSquares;
+    {
+      std::unique_lock<std::mutex> lock(m_mutex_ID);
+      m_int_ID                = _frame.m_int_ID;
+    }
+    m_cvMat_R_c2w             = _frame.m_cvMat_R_c2w.clone();
+    m_cvMat_R_w2c             = _frame.m_cvMat_R_w2c.clone();
+    m_cvMat_t_c2w             = _frame.m_cvMat_t_c2w.clone();
+    m_cvMat_T_c2w             = _frame.m_cvMat_T_c2w.clone();
+    m_cvMat_origin            = _frame.m_cvMat_origin.clone();
+    return *this;
   }
   void Frame::extractOrb(const cv::Mat &_image, const bool &_isRight){
     if(_isRight){

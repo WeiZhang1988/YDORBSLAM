@@ -9,4 +9,4 @@ cmake --install .
 
 printf "\e[1;36m----- running test -----\e[0m\n"
 cd ../exe
-./test
+./test data/ORBvoc.txt data/TUM1.yaml data/rgbd_dataset/ data/fr1_xyz.txt

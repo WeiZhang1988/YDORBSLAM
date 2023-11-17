@@ -9,10 +9,13 @@ test/data
 thirdParty/DBow3/build
 thirdParty/DBow3/install
 
+thirdParty/eigen/build
+thirdParty/eigen/install
+
 thirdParty/g2o/bin
 thirdParty/g2o/build
 thirdParty/g2o/lib
 thirdParty/g2o/install
 
-thirdParty/eigen/build
-thirdParty/eigen/install
+thirdParty/Pangolin/build
+thirdParty/Pangolin/install

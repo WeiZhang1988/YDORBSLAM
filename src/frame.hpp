@@ -30,6 +30,8 @@ namespace YDORBSLAM{
     Frame(const cv::Mat &_leftImage, const cv::Mat &_rightImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const cv::Mat &_rightImageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrLeftExtractor, std::shared_ptr<OrbExtractor> _sptrRightExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab);
     //constructor for RGB-D cameras
     Frame(const cv::Mat &_grayImage, const cv::Mat &_depthImage, const double &_timeStamp, const cv::Mat &_camIntParMat, const cv::Mat &_imageDistCoef, const float &_baseLineTimesFx, const float &_depthThd, std::shared_ptr<OrbExtractor> _sptrExtractor, std::shared_ptr<DBoW3::Vocabulary> _sptrVocab);
+    //operator=
+    Frame& operator=(const Frame &_frame);
     //extract ORB on the image. channel flag = false means left, true means right
     void extractOrb(const cv::Mat &_image, const bool &_isRight=false);
     //pose functions#####-#####-#####-#####-#####-#####-#####-#####-#####-#####

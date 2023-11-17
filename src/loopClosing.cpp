@@ -130,7 +130,7 @@ namespace YDORBSLAM{
         if(!m_v_consistentCandidates[i]->isBad() && matcher.searchByBowInTwoKeyFrames(m_sptr_currentLoopKeyFrame, m_v_consistentCandidates[i], vvSptrMatchedMapPoints[i])>=20){
           std::shared_ptr<Sim3Solver> sptrSolver = std::make_shared<Sim3Solver>(m_sptr_currentLoopKeyFrame, m_v_consistentCandidates[i], vvSptrMatchedMapPoints[i], m_b_isScaleFixed);
           sptrSolver->setRansacParameters(0.99,20,300);
-          vsptrSim3Solvers[i] = sptrSolver;
+          vSptrSim3Solvers[i] = sptrSolver;
           validCandidatesNum++;
         }else{
           vIsDiscardeds[i] = true;
@@ -147,7 +147,7 @@ namespace YDORBSLAM{
           std::vector<bool> vIsInliers;
           int intInliersNum;
           bool bIsNoMore;
-          std::shared_ptr<Sim3Solver> sptrSolver = vsptrSim3Solvers[i];
+          std::shared_ptr<Sim3Solver> sptrSolver = vSptrSim3Solvers[i];
           cv::Mat sim3_cur2cand = sptrSolver->iterate(5,bIsNoMore,vIsInliers,intInliersNum);
           //if ransac reaches maximum, iterations discard key frame
           if(bIsNoMore){
@@ -162,14 +162,13 @@ namespace YDORBSLAM{
                 vSptrMatchedMapPoints[j] = vvSptrMatchedMapPoints[i][j];
               }
             }
-            cv::Mat rotation = sptrSolver->getEstimationRotation();
+            cv::Mat rotation = sptrSolver->getEstimatedRotation();
             cv::Mat translation = sptrSolver->getEstimatedTranslation();
             const float scale = sptrSolver->getEstimatedScale();
             matcher.searchBySim3(m_sptr_currentLoopKeyFrame,m_v_consistentCandidates[i],vSptrMatchedMapPoints,scale,rotation,translation,7.5);
             g2o::Sim3 g2oSim3_cur2cand(Converter::d3X3Matrix_cvMat_eigen(rotation),Converter::d3X1Matrix_cvMat_eigen(translation),scale);
-            const int intInliers = ;
             //if optimization is successful, stop ransacs and continue
-            if((Optimizer::optimizeSim3(m_sptr_currentLoopKeyFrame,m_v_consistentCandidates[i],vSptrMatchedMapPoints,g2oSim3,10,m_b_isScaleFixed))>=20){
+            if((Optimizer::optimizeSim3(m_sptr_currentLoopKeyFrame,m_v_consistentCandidates[i],vSptrMatchedMapPoints,g2oSim3_cur2cand,10,m_b_isScaleFixed))>=20){
               bIsSim3OptSuccessful = true;
               m_sptr_currentLoopKeyFrame = m_v_consistentCandidates[i];
               g2o::Sim3 g2oSim3_cand2world(Converter::d3X3Matrix_cvMat_eigen(m_v_consistentCandidates[i]->getRotation_c2w()),Converter::d3X1Matrix_cvMat_eigen(m_v_consistentCandidates[i]->getTranslation_c2w()),1.0);
@@ -208,7 +207,7 @@ namespace YDORBSLAM{
     //if matches are enough, then accept loop
     int intTotalMatchesNum = 0;
     for(std::shared_ptr<MapPoint> &sptrMatchedMapPoint : m_v_matchedMapPoints){
-      if(sptrMatchedMP){
+      if(sptrMatchedMapPoint){
         intTotalMatchesNum++;
       }
     }
@@ -256,7 +255,7 @@ namespace YDORBSLAM{
     {
       std::unique_lock<std::mutex> lock(m_sptr_map->m_mutex_updateMap);
       for(std::shared_ptr<KeyFrame> &sptrConnectedKeyFrame : m_v_connectedKeyFrames){
-        cv::Mat T_cnct2w = sptrConnectedKeyFrame->getCameraPoseByTransrom_c2w();
+        cv::Mat T_cnct2w = sptrConnectedKeyFrame->getCameraPoseByTransform_c2w();
         if(sptrConnectedKeyFrame != m_sptr_currentLoopKeyFrame){
           cv::Mat T_cnct2c = T_cnct2w * T_w2c;
           cv::Mat R_cnct2c = T_cnct2c.rowRange(0,3).colRange(0,3);
@@ -279,7 +278,7 @@ namespace YDORBSLAM{
             //project with non-corrected pose and project back with corrected pose
             cv::Mat mapPointPosInWorld = sptrMapPoint->getPosInWorld();
             Eigen::Matrix<double,3,1> eigen_mapPointPosInWorld = Converter::d3X1Matrix_cvMat_eigen(mapPointPosInWorld);
-            Eigen::Matrix<double,3,1> eigen_correctedMapPointPosInWorld = correctedSim3.second.inverse().map(nonCorrectedSim3s[correctedSim3.first].map())   map(g2oSiw.map(eigen_mapPointPosInWorld));
+            Eigen::Matrix<double,3,1> eigen_correctedMapPointPosInWorld = correctedSim3.second.inverse().map(nonCorrectedSim3s[correctedSim3.first].map(eigen_mapPointPosInWorld));
             cv::Mat cvMat_correctedMapPointPosInWorld = Converter::d3X1Matrix_eigen_cvMat(eigen_correctedMapPointPosInWorld);
             sptrMapPoint->setPosInWorld(cvMat_correctedMapPointPosInWorld);
             sptrMapPoint->m_int_correctedByKeyFrameID = m_sptr_currentLoopKeyFrame->m_int_keyFrameID;
@@ -293,7 +292,7 @@ namespace YDORBSLAM{
       }
       //start loop function
       //update matched map points and replace if duplicated
-      for(int i=0;i<m_v_matchedMapPoints.size();i+){
+      for(int i=0;i<m_v_matchedMapPoints.size();i++){
         if(m_v_matchedMapPoints[i]){
           if(m_sptr_currentLoopKeyFrame->getMapPoint(i)){
             m_sptr_currentLoopKeyFrame->getMapPoint(i)->beReplacedBy(m_v_matchedMapPoints[i]);
@@ -332,7 +331,7 @@ namespace YDORBSLAM{
     m_b_isRunningGlobalBA = true;
     m_b_isGlobalBAFinished = false;
     m_b_isGlobalBAStopped = false;
-    m_sptr_globalBAThread = std::make_shared<thread>(&LoopClosing::runGlobalBundleAdjustment,shared_from_this(),m_sptr_currentLoopKeyFrame->m_int_keyFrameID);
+    m_sptr_globalBAThread = std::make_shared<std::thread>(&LoopClosing::runGlobalBundleAdjustment,shared_from_this(),m_sptr_currentLoopKeyFrame->m_int_keyFrameID);
     m_sptr_localMapper->release();
     m_int_lastLoopKeyFrameID = m_sptr_currentLoopKeyFrame->m_int_keyFrameID;
   }
@@ -340,7 +339,8 @@ namespace YDORBSLAM{
     OrbMatcher matcher(0.8);
     for(const std::pair<std::shared_ptr<KeyFrame>,g2o::Sim3>& poseMap : _correctedPosesMap){
       std::vector<std::shared_ptr<MapPoint>> vBeingReplacedMapPoints(m_v_loopMapPoints.size(),static_cast<std::shared_ptr<MapPoint>>(nullptr));
-      matcher.fuseBySim3(poseMap.first,Converter::toCvMat(poseMap.second),m_v_loopMapPoints,4,vBeingReplacedMapPoints);
+      cv::Mat cvMatSc2w = Converter::transform_Sim3_cvMat(poseMap.second);
+      matcher.fuseBySim3(poseMap.first,cvMatSc2w,m_v_loopMapPoints,4,vBeingReplacedMapPoints);
       //get map mutex
       std::unique_lock<std::mutex> lock(m_sptr_map->m_mutex_updateMap);
       for(int i=0;i<m_v_loopMapPoints.size();i++){
@@ -394,24 +394,24 @@ namespace YDORBSLAM{
             usleep(1000);
           }
           //get map mutex
-          std::unique_lock<std::mutex> lock((m_sptr_map->m_mutex_updateMap);
+          std::unique_lock<std::mutex> lock(m_sptr_map->m_mutex_updateMap);
           //correct key frames starting at map first key frame
           std::list<std::shared_ptr<KeyFrame>> listKeyFramesToBeChecked(m_sptr_map->m_v_sptrOriginalKeyFrames.begin(),m_sptr_map->m_v_sptrOriginalKeyFrames.end());
           while(!listKeyFramesToBeChecked.empty()){
             std::shared_ptr<KeyFrame> firstKeyFrame = listKeyFramesToBeChecked.front();
-            const std::set<std::shared_ptr<KeyFrame>> children = pKF->getChildren();
+            const std::set<std::shared_ptr<KeyFrame>> children = firstKeyFrame->getChildren();
             for(const std::shared_ptr<KeyFrame> &childKeyFrame : children){
               if(childKeyFrame->m_int_globalBAForKeyFrameID!=_int_loopKeyFrameID){
-                childKeyFrame->m_cvMat_T_c2w_GlobalBA = childKeyFrame->getCameraPoseByTransrom_c2w * firstKeyFrame->getInverseCameraPoseByTransform_w2c() * firstKeyFrame->m_cvMat_T_c2w_GlobalBA;
+                childKeyFrame->m_cvMat_T_c2w_GlobalBA = childKeyFrame->getCameraPoseByTransform_c2w() * firstKeyFrame->getInverseCameraPoseByTransform_w2c() * firstKeyFrame->m_cvMat_T_c2w_GlobalBA;
                 childKeyFrame->m_int_globalBAForKeyFrameID = _int_loopKeyFrameID;
               }
               listKeyFramesToBeChecked.push_back(childKeyFrame);
             }
-            firstKeyFrame->m_cvMat_T_c2w_beforeGlobalBA = firstKeyFrame->getCameraPoseByTransrom_c2w();
+            firstKeyFrame->m_cvMat_T_c2w_beforeGlobalBA = firstKeyFrame->getCameraPoseByTransform_c2w();
             firstKeyFrame->setCameraPoseByTransform_c2w(firstKeyFrame->m_cvMat_T_c2w_GlobalBA);
             listKeyFramesToBeChecked.pop_front();
           }
-          //coorect map points
+          //correct map points
           for(const std::shared_ptr<MapPoint> &mapPoint : m_sptr_map->getAllMapPoints()){
             if(mapPoint && !mapPoint->isBad()){
               if(mapPoint->m_int_globalBAforKeyFrameID == _int_loopKeyFrameID){
@@ -420,7 +420,7 @@ namespace YDORBSLAM{
               }else{
                 //update according to the correction of its reference key frame
                 std::shared_ptr<KeyFrame> referenceKeyFrame = mapPoint->getReferenceKeyFrame();
-                if(referenceKeyFrame->m_int_globalBAForKeyFrameID!==_int_loopKeyFrameID){
+                if(referenceKeyFrame->m_int_globalBAForKeyFrameID==_int_loopKeyFrameID){
                   // Map to non-corrected camera
                   cv::Mat rotation_c2w = referenceKeyFrame->m_cvMat_T_c2w_beforeGlobalBA.rowRange(0,3).colRange(0,3);
                   cv::Mat translation_c2w = referenceKeyFrame->m_cvMat_T_c2w_beforeGlobalBA.rowRange(0,3).col(3);
@@ -428,7 +428,7 @@ namespace YDORBSLAM{
                   // Backproject using corrected camera
                   cv::Mat Tansform_w2c = referenceKeyFrame->getInverseCameraPoseByTransform_w2c();
                   cv::Mat rotation_w2c = Tansform_w2c.rowRange(0,3).colRange(0,3);
-                  cv::Mat translation_w2c = Tansform_w2c.rowRange(0,3).col(3)
+                  cv::Mat translation_w2c = Tansform_w2c.rowRange(0,3).col(3);
                   mapPoint->setPosInWorld(rotation_w2c * cameraInWorld + translation_w2c);
                 }
               }

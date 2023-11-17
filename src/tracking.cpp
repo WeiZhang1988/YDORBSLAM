@@ -3,10 +3,11 @@
 #include <opencv2/features2d/features2d.hpp>
 #include "optimizer.hpp"
 #include "pnpSolver.hpp"
+#include <unistd.h>
 
 namespace YDORBSLAM{
   Tracking::Tracking(std::shared_ptr<System> _sptrSys, std::shared_ptr<DBoW3::Vocabulary> _sptrVoc, std::shared_ptr<FrameDrawer> _sptrFrameDrawer, std::shared_ptr<MapDrawer> _sptrMapDrawer, std::shared_ptr<Map> _sptrMap, \
-  std::shared_ptr<KeyFrameDatabase> _sptrKeyFrameDatabase, System::Sensor &_sensor, const string &_strSettingPath) : \
+  std::shared_ptr<KeyFrameDatabase> _sptrKeyFrameDatabase, const Sensor &_sensor, const std::string &_strSettingPath) : \
   m_sptr_system(_sptrSys), m_sptr_orbVocabulary(_sptrVoc), m_sptr_frameDrawer(_sptrFrameDrawer), m_sptr_mapDrawer(_sptrMapDrawer), m_sptr_map(_sptrMap), \
   m_sptr_keyFrameDatabase(_sptrKeyFrameDatabase), m_sys_sensor(_sensor){
     //load camera parameters from setting file
@@ -26,8 +27,8 @@ namespace YDORBSLAM{
     m_cvMat_rightImageDistCoef.at<float>(3) = settingFile["RightCamera.p2"];
     m_cvMat_rightImageDistCoef.at<float>(4) = settingFile["RightCamera.k3"];
     m_flt_baseLineTimesFx = settingFile["Camera.bf"];
-    m_int_maxFramesNum = settingFile["Camera.fps"]>0?settingFile["Camera.fps"]:30;
-    std::cout << endl << "Camera Parameters: " << std::endl;
+    m_int_maxFramesNum = (int)settingFile["Camera.fps"]>0?(int)settingFile["Camera.fps"]:30;
+    std::cout << std::endl << "Camera Parameters: " << std::endl;
     std::cout << "- fx: " << m_cvMat_intParMat.at<float>(0,0) << std::endl;
     std::cout << "- fy: " << m_cvMat_intParMat.at<float>(1,1) << std::endl;
     std::cout << "- cx: " << m_cvMat_intParMat.at<float>(0,2) << std::endl;
@@ -43,7 +44,7 @@ namespace YDORBSLAM{
     std::cout << "- right p2: " << m_cvMat_rightImageDistCoef.at<float>(3) << std::endl;
     std::cout << "- right k3: " << m_cvMat_rightImageDistCoef.at<float>(4) << std::endl;
     std::cout << "- fps: " << m_int_maxFramesNum << std::endl;
-    std::cout << m_b_isRGB?"- color order: RGB (ignored if grayscale)":"- color order: BGR (ignored if grayscale)" << std::endl;
+    std::cout << (m_b_isRGB?"- color order: RGB (ignored if grayscale)":"- color order: BGR (ignored if grayscale)") << std::endl;
     int keyPointsNum   = settingFile["ORBextractor.nFeatures"];
     float scaleFactor  = settingFile["ORBextractor.scaleFactor"];
     int levelsNum      = settingFile["ORBextractor.nLevels"];
@@ -57,10 +58,10 @@ namespace YDORBSLAM{
     std::cout << "- Scale Levels: " << levelsNum << std::endl;
     std::cout << "- Initial Fast Threshold: " << initFastThd << std::endl;
     std::cout << "- Minimum Fast Threshold: " << minFastThd << std::endl;
-    if(m_sys_sensor==System::Sensor::STEREO || m_sys_sensor==System::Sensor::RGBD){
-      m_flt_depthThd = m_flt_baselineTimesFx * (float)settingFile["ThDepth"]/settingFile["Camera.fx"];
+    if(m_sys_sensor==Sensor::STEREO || m_sys_sensor==Sensor::RGBD){
+      m_flt_depthThd = m_flt_baseLineTimesFx * (float)settingFile["ThDepth"]/(float)settingFile["Camera.fx"];
       std::cout << std::endl << "Depth Threshold (Close/Far Points): " << m_flt_depthThd << std::endl;
-      if(m_sys_sensor==System::Sensor::RGBD){
+      if(m_sys_sensor==Sensor::RGBD){
         m_flt_depthMapFactor = settingFile["DepthMapFactor"];
         m_flt_depthMapFactor = fabs(m_flt_depthMapFactor)<1e-5?1.0f:1.0f/m_flt_depthMapFactor;
       }
@@ -71,22 +72,22 @@ namespace YDORBSLAM{
     cv::Mat rightGrayImage = _rightImageRect;
     if(m_b_isRGB){
       if(m_cvMat_grayImage.channels()==3){
-        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,COLOR_RGB2GRAY);
-        cv::cvtColor(rightGrayImage,rightGrayImage,COLOR_RGB2GRAY);
+        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,cv::COLOR_RGB2GRAY);
+        cv::cvtColor(rightGrayImage,rightGrayImage,cv::COLOR_RGB2GRAY);
       }else if(m_cvMat_grayImage.channels()==4){
-        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,COLOR_RGBA2GRAY);
-        cv::cvtColor(rightGrayImage,rightGrayImage,COLOR_RGBA2GRAY);
+        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,cv::COLOR_RGBA2GRAY);
+        cv::cvtColor(rightGrayImage,rightGrayImage,cv::COLOR_RGBA2GRAY);
       }
     }else{
       if(m_cvMat_grayImage.channels()==3){
-        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,COLOR_BGR2GRAY);
-        cv::cvtColor(rightGrayImage,rightGrayImage,COLOR_BGR2GRAY);
+        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,cv::COLOR_BGR2GRAY);
+        cv::cvtColor(rightGrayImage,rightGrayImage,cv::COLOR_BGR2GRAY);
       }else if(m_cvMat_grayImage.channels()==4){
-        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,COLOR_BGRA2GRAY);
-        cv::cvtColor(rightGrayImage,rightGrayImage,COLOR_BGRA2GRAY);
+        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,cv::COLOR_BGRA2GRAY);
+        cv::cvtColor(rightGrayImage,rightGrayImage,cv::COLOR_BGRA2GRAY);
       }
     }
-    m_frame_currentFrame = Frame(m_cvMat_grayImage,rightGrayImage,_timeStamp,m_cvMat_intParMat,m_cvMat_leftImageDistCoef,m_cvMat_rightImageDistCoef,m_flt_baseLineTimesFx,m_flt_depthThd,m_sptr_leftOrbExtractor,m_sptr_rightOrbExtractor,m_sptr_orbVocabulary);
+    m_frame_currentFrame = Frame(m_cvMat_grayImage,rightGrayImage,_timestamp,m_cvMat_intParMat,m_cvMat_leftImageDistCoef,m_cvMat_rightImageDistCoef,m_flt_baseLineTimesFx,m_flt_depthThd,m_sptr_leftOrbExtractor,m_sptr_rightOrbExtractor,m_sptr_orbVocabulary);
     track();
     return m_frame_currentFrame.m_cvMat_T_c2w.clone();
   }
@@ -95,21 +96,22 @@ namespace YDORBSLAM{
     cv::Mat depthImage = _depthImage;
     if(m_b_isRGB){
       if(m_cvMat_grayImage.channels()==3){
-        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,COLOR_RGB2GRAY);
+        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,cv::COLOR_RGB2GRAY);
       }else if(m_cvMat_grayImage.channels()==4){
-        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,COLOR_RGBA2GRAY);
+        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,cv::COLOR_RGBA2GRAY);
       }
     }else{
       if(m_cvMat_grayImage.channels()==3){
-        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,COLOR_BGR2GRAY);
+        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,cv::COLOR_BGR2GRAY);
       }else if(m_cvMat_grayImage.channels()==4){
-        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,COLOR_BGRA2GRAY);
+        cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,cv::COLOR_BGRA2GRAY);
       }
     }
     if((fabs(m_flt_depthMapFactor-1.0f)>1e-5) || depthImage.type()!=CV_32F){
       depthImage.convertTo(depthImage,CV_32F,m_flt_depthMapFactor);
     }
-    m_frame_currentFrame = Frame(m_cvMat_grayImage,depthImage,_timeStamp,m_cvMat_intParMat,m_cvMat_imageDistCoef,m_flt_baseLineTimesFx,m_flt_depthThd,m_sptr_leftOrbExtractor,m_sptr_orbVocabulary);
+    m_frame_currentFrame = Frame(m_cvMat_grayImage,depthImage,_timestamp,m_cvMat_intParMat,m_cvMat_leftImageDistCoef,m_flt_baseLineTimesFx,m_flt_depthThd,m_sptr_leftOrbExtractor,m_sptr_orbVocabulary);
+    std::cout<<"------------------grabImageRGBD"<<std::endl;
     track();
     return m_frame_currentFrame.m_cvMat_T_c2w.clone();
   }
@@ -149,7 +151,7 @@ namespace YDORBSLAM{
     if(m_sptr_viewer){
       m_sptr_viewer->requestStop();
       while(!m_sptr_viewer->isStopped()){
-        std::usleep(3000);
+        usleep(3000);
       }
     }
     //reset local mapping, loop closing, and BoW
@@ -163,7 +165,7 @@ namespace YDORBSLAM{
     m_sptr_keyFrameDatabase->clear();
     std::cout << " done" << std::endl;
     //clear map including map points and key frames
-    m_sptr_map->clear();
+    m_sptr_map->clearAll();
     KeyFrame::m_int_reservedKeyFrameID = 0;
     Frame::m_int_reservedID = 0;
     m_ts_state = TrackingState::NO_IMAGE_YET;
@@ -182,9 +184,9 @@ namespace YDORBSLAM{
     m_ts_lastProcessedState = m_ts_state;
     std::unique_lock<std::mutex> lock(m_sptr_map->m_mutex_updateMap);
     if(m_ts_state == TrackingState::NOT_INITIALIZED){
-      if(m_sys_sensor==System::Sensor::STEREO || m_sys_sensor==System::Sensor::RGBD){
+      if(m_sys_sensor==Sensor::STEREO || m_sys_sensor==Sensor::RGBD){
         initializeStereo();
-      }
+      }  
       m_sptr_frameDrawer->update(shared_from_this());
       if(m_ts_state!=TrackingState::OK){
         return;
@@ -243,10 +245,18 @@ namespace YDORBSLAM{
       }else{
         if(m_ts_state==TrackingState::OK){
           checkReplacementInLastFrame();
-          if(!m_cvMat_velocity.empty() && m_frame_currentFrame.m_int_ID>=m_int_lastRelocalizedFrameID+2 && trackWithMotionModel()){
-            isOK = true;
-          }else{
+          std::cout<<"---------------------1"<<std::endl;
+          /*std::cout<<!m_cvMat_velocity.empty()<<std::endl;
+          std::cout<<(m_frame_currentFrame.m_int_ID>=m_int_lastRelocalizedFrameID+2)<<std::endl;
+          std::cout<<trackWithMotionModel()<<std::endl;*/
+          if(m_cvMat_velocity.empty() ||  m_frame_currentFrame.m_int_ID<m_int_lastRelocalizedFrameID+2){
+            std::cout<<"---------------------2"<<std::endl;
             isOK = trackReferenceKeyFrame();
+          }else{
+            isOK = trackWithMotionModel();
+            if(!isOK){
+              isOK = trackReferenceKeyFrame();
+            }
           }
         }else{
           isOK = relocalize();
@@ -283,7 +293,7 @@ namespace YDORBSLAM{
         }
         //delete temporal map points, the for loop may not be needed.
         for(std::shared_ptr<MapPoint> &tempMapPoint : m_list_tempMapPoints){
-          sptrMapPoint.reset();
+          tempMapPoint.reset();
         }
         m_list_tempMapPoints.clear();
         //check whether need to insert a new key frame
@@ -315,13 +325,13 @@ namespace YDORBSLAM{
       m_list_relFramePoses.push_back(T_crr2ref);
       m_list_refKeyFrames.push_back(m_sptr_refKeyFrame);
       m_list_frameTimes.push_back(m_frame_currentFrame.m_d_timeStamp);
-      m_list_isLost.push_back(m_ts_state == TrackingState::LOST)
+      m_list_isLost.push_back(m_ts_state == TrackingState::LOST);
     }else{
       //this happens when tracking is lost
       m_list_relFramePoses.push_back(m_list_relFramePoses.back());
       m_list_refKeyFrames.push_back(m_list_refKeyFrames.back());
       m_list_frameTimes.push_back(m_list_frameTimes.back());
-      m_list_isLost.push_back(m_ts_state == TrackingState::LOST)
+      m_list_isLost.push_back(m_ts_state == TrackingState::LOST);
     }
   }
   void Tracking::initializeStereo(){
@@ -346,12 +356,13 @@ namespace YDORBSLAM{
       }
       std::cout << "New map created with " << m_sptr_map->getMapPointsNum() << " points" << std::endl;
       m_sptr_localMapper->insertKeyFrame(sptrInitKeyFrame);
-      m_frame_lastFrame = Frame(m_frame_currentFrame);
       m_int_lastKeyFrameID = m_frame_currentFrame.m_int_ID;
       m_sptr_lastKeyFrame = sptrInitKeyFrame;
       m_v_localKeyFrames.push_back(sptrInitKeyFrame);
       m_v_localMapPoints = m_sptr_map->getAllMapPoints();
       m_sptr_refKeyFrame = sptrInitKeyFrame;
+      m_frame_currentFrame.m_sptr_refKeyFrame = sptrInitKeyFrame;
+      m_frame_lastFrame = Frame(m_frame_currentFrame);
       m_sptr_map->setReferenceMapPoints(m_v_localMapPoints);
       m_sptr_map->m_v_sptrOriginalKeyFrames.push_back(sptrInitKeyFrame);
       m_sptr_mapDrawer->setCurrentCameraPose(m_frame_currentFrame.m_cvMat_T_c2w);
@@ -373,12 +384,16 @@ namespace YDORBSLAM{
     OrbMatcher matcher(0.7,true);
     std::vector<std::shared_ptr<MapPoint>> vSptrMatchedMapPoint;
     int refKeyFrame2currKeyFrameMatchNum = matcher.searchByBowInKeyFrameAndFrame(m_sptr_refKeyFrame,m_frame_currentFrame,vSptrMatchedMapPoint);
+    std::cout<<"------------trackReferenceKeyFrame"<<std::endl;
+    std::cout<<"refKeyFrame2currKeyFrameMatchNum="<<refKeyFrame2currKeyFrameMatchNum<<std::endl;
     if(refKeyFrame2currKeyFrameMatchNum>=15){
       m_frame_currentFrame.m_v_sptrMapPoints = vSptrMatchedMapPoint;
       m_frame_currentFrame.setCameraPoseByTransform_c2w(m_frame_lastFrame.m_cvMat_T_c2w);
+      std::cout<<"------------setCameraPoseByTransform_c2w"<<std::endl;
       Optimizer::optimizePose(m_frame_currentFrame);
       //discard outliers
       int matchedMapPointsNum = 0;
+      std::cout<<"------------optimizePose"<<std::endl;
       for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
         if(m_frame_currentFrame.m_v_sptrMapPoints[i]){
           if(m_frame_currentFrame.m_v_isOutliers[i]){
@@ -399,8 +414,12 @@ namespace YDORBSLAM{
   }
   void Tracking::updateLastFrame(){
     //update pose according to reference key frame
-    m_frame_lastFrame.setCameraPoseByTransform_c2w(m_list_relFramePoses.back()*m_frame_lastFrame.m_sptr_refKeyFrame->getCameraPoseByTransrom_c2w());
-    if(m_int_lastKeyFrameID==m_frame_lastFrame.m_int_ID || !m_b_isTrackingOnly || m_sys_sensor==System::Sensor::MONOCULAR){
+    std::cout<<"--------------updateLastFrame"<<std::endl;
+    //std::cout<<"m_frame_currentFrame.m_sptr_refKeyFrame="<<m_frame_currentFrame.m_sptr_refKeyFrame<<std::endl;
+    std::cout<<"m_frame_lastFrame.m_sptr_refKeyFrame="<<m_frame_lastFrame.m_sptr_refKeyFrame<<std::endl;
+    m_frame_lastFrame.setCameraPoseByTransform_c2w(m_list_relFramePoses.back()*m_frame_lastFrame.m_sptr_refKeyFrame->getCameraPoseByTransform_c2w());
+    std::cout<<"--------------setCameraPoseByTransform_c2w"<<std::endl;
+    if(m_int_lastKeyFrameID==m_frame_lastFrame.m_int_ID || !m_b_isTrackingOnly){
       return;
     }
     //create visual odometry map points
@@ -436,12 +455,13 @@ namespace YDORBSLAM{
     OrbMatcher matcher(0.9,true);
     //update last frame pose according to its reference key frame
     //create visual odometry points if in localization mode
+    std::cout<<"--------------trackWithMotionModel"<<std::endl;
     updateLastFrame();
     m_frame_currentFrame.setCameraPoseByTransform_c2w(m_cvMat_velocity*m_frame_lastFrame.m_cvMat_T_c2w);
     std::fill(m_frame_currentFrame.m_v_sptrMapPoints.begin(),m_frame_currentFrame.m_v_sptrMapPoints.end(),static_cast<std::shared_ptr<MapPoint>>(nullptr));
     //project points seen in previous frame
     int thd = 7;
-    if(m_sys_sensor==System::Sensor::STEREO){
+    if(m_sys_sensor==Sensor::STEREO){
       thd = 7;
     }else{
       thd = 15;
@@ -488,8 +508,8 @@ namespace YDORBSLAM{
   }
   void Tracking::updateLocalPoints(){
     m_v_localMapPoints.clear();
-    for(const std::shared_prt<KeyFrame> &sptrKeyFrame : m_v_localKeyFrames){
-      for(const std::shared_prt<MapPoint> &sptrMapPoint : sptrKeyFrame->getMatchedMapPointsVec()){
+    for(const std::shared_ptr<KeyFrame> &sptrKeyFrame : m_v_localKeyFrames){
+      for(const std::shared_ptr<MapPoint> &sptrMapPoint : sptrKeyFrame->getMatchedMapPointsVec()){
         if(sptrMapPoint && sptrMapPoint->m_int_trackRefForFrameID!=m_frame_currentFrame.m_int_ID && !sptrMapPoint->isBad()){
           m_v_localMapPoints.push_back(sptrMapPoint);
           sptrMapPoint->m_int_trackRefForFrameID = m_frame_currentFrame.m_int_ID;
@@ -531,19 +551,19 @@ namespace YDORBSLAM{
       }
     }
     //include some not-yet-included key frames that are neighbors to already-included key frames
-    for(const std::shared_prt<KeyFrame>& sptrKeyFrame : m_v_localKeyFrames){
+    for(const std::shared_ptr<KeyFrame>& sptrKeyFrame : m_v_localKeyFrames){
       //limit the number of key frames
       if(m_v_localKeyFrames.size() > 80){
         break;
       }
-      for(const std::shared_prt<KeyFrame> &connectedkeyFrame : sptrKeyFrame->getOrderedConnectedKeyFramesLargerThanWeight(10)){
+      for(const std::shared_ptr<KeyFrame> &connectedkeyFrame : sptrKeyFrame->getOrderedConnectedKeyFramesLargerThanWeight(10)){
         if(connectedkeyFrame && !connectedkeyFrame->isBad() && connectedkeyFrame->m_int_trackRefForFrameID!=m_frame_currentFrame.m_int_ID){
           m_v_localKeyFrames.push_back(connectedkeyFrame);
           connectedkeyFrame->m_int_trackRefForFrameID = m_frame_currentFrame.m_int_ID;
           break;
         }
       }
-      for(const std::shared_prt<KeyFrame> &childKeyFrame : sptrKeyFrame->getChildren()){
+      for(const std::shared_ptr<KeyFrame> &childKeyFrame : sptrKeyFrame->getChildren()){
         if(childKeyFrame && !childKeyFrame->isBad() && childKeyFrame->m_int_trackRefForFrameID!=m_frame_currentFrame.m_int_ID){
           m_v_localKeyFrames.push_back(childKeyFrame);
           childKeyFrame->m_int_trackRefForFrameID = m_frame_currentFrame.m_int_ID;
@@ -585,7 +605,7 @@ namespace YDORBSLAM{
     if(matchedMapPointsNum>0){
       OrbMatcher matcher(0.8);
       int thd = 1;
-      if(m_sys_sensor==System::Sensor::RGBD){
+      if(m_sys_sensor==Sensor::RGBD){
         thd = 3;
       }
       //if the camera is relocalized recently, perform a coarser search
@@ -613,7 +633,7 @@ namespace YDORBSLAM{
           }else if(m_frame_currentFrame.m_v_sptrMapPoints[i]->getObservationsNum() > 0){
             m_int_matchInliersNum++;
           }
-        }else if(m_sys_sensor == System::Sensor::STEREO){
+        }else if(m_sys_sensor == Sensor::STEREO){
           m_frame_currentFrame.m_v_sptrMapPoints[i] = static_cast<std::shared_ptr<MapPoint>>(nullptr);
         }
       }
@@ -625,7 +645,7 @@ namespace YDORBSLAM{
     }else if(m_int_matchInliersNum<30){
       return false;
     }else{
-      return true
+      return true;
     }
   }
   bool Tracking::relocalize(){
@@ -649,7 +669,7 @@ namespace YDORBSLAM{
         if(matcher.searchByBowInKeyFrameAndFrame(vSptrKeyFrameCandidates[i],m_frame_currentFrame,vvSptrMatchedMapPoints[i])>=15){
           std::shared_ptr<PnPsolver> pnpSolver = std::make_shared<PnPsolver>(m_frame_currentFrame,vvSptrMatchedMapPoints[i]);
           pnpSolver->setRansacParameters(0.99,10,300,4,0.5,5.991);
-          vsptrPnPsolvers[i] = pnpSolver;
+          vSptrPnPsolvers[i] = pnpSolver;
           finalCandidatesNum++;
         }
       }
@@ -659,7 +679,7 @@ namespace YDORBSLAM{
     int inliersNum = 0;
     while(finalCandidatesNum>0 && inliersNum<50){
       for(int i=0;i<vSptrKeyFrameCandidates.size();i++){
-        if(vSptrPnPsolvers){
+        if(vSptrPnPsolvers[i]){
           //perform five ransac iterations
           std::vector<bool> vIsInliers;
           int tempInliersNum;
@@ -731,7 +751,7 @@ namespace YDORBSLAM{
     }
   }
   bool Tracking::needNewKeyFrame(){
-    if(m_b_isTrackingOnly || m_sptr_localMapper->isStopped() || m_sptr_localMapper->stopRequested() || \
+    if(m_b_isTrackingOnly || m_sptr_localMapper->isStopped() || m_sptr_localMapper->isStopRequested() || \
     (m_frame_currentFrame.m_int_ID<m_int_lastRelocalizedFrameID+m_int_maxFramesNum && m_sptr_map->getKeyFramesNum()>m_int_maxFramesNum)){
       return false;
     }
@@ -743,15 +763,15 @@ namespace YDORBSLAM{
     }else if(m_sptr_map->getKeyFramesNum()==2){
       minObservationNum = 2;
     }
-    if(m_sys_sensor==System::Sensor::MONOCULAR){
-      refRatioThd = 0.9f
+    if(m_sys_sensor==Sensor::MONOCULAR){
+      refRatioThd = 0.9f;
     }
     int refKeyFrameMatchNum = m_sptr_refKeyFrame->trackedMapPointsNum(minObservationNum);
     bool isLocalMapperIdle = m_sptr_localMapper->isToAcceptKeyFrames();
     //check how many close points are being tracked and how many could potentially be created
     int notTrackedClosePointsNum=0, trackedClosePointsNum=0;
-    if(m_sys_sensor!=System::Sensor::MONOCULAR){
-      for(int i=0;i<m_frame_currentFrame.keyPointsNum;i++){
+    if(m_sys_sensor!=Sensor::MONOCULAR){
+      for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
         if(m_frame_currentFrame.m_v_depth[i]>0 && m_frame_currentFrame.m_v_depth[i]<m_flt_depthThd){
           if(m_frame_currentFrame.m_v_sptrMapPoints[i] && !m_frame_currentFrame.m_v_isOutliers[i]){
             trackedClosePointsNum++;
@@ -767,7 +787,7 @@ namespace YDORBSLAM{
     //condition 1b: more than "min frame num" have passed and local mapping is idle
     const bool cond1b = m_frame_currentFrame.m_int_ID>=m_int_lastKeyFrameID+m_int_minFramesNum && isLocalMapperIdle;
     //condition 1c: tracking is weak
-    const bool cond1c = m_sys_sensor != System::Sensor::MONOCULAR && (m_int_matchInliersNum<refKeyFrameMatchNum*0.25 || needToInsertClose);
+    const bool cond1c = m_sys_sensor != Sensor::MONOCULAR && (m_int_matchInliersNum<refKeyFrameMatchNum*0.25 || needToInsertClose);
     //condition 2:  too few tracked points compared to reference key frame, but too many visual odometry compared to map matches
     const bool cond2  = m_int_matchInliersNum>15 && (m_int_matchInliersNum<refKeyFrameMatchNum*refRatioThd || needToInsertClose);
     if((cond1a || cond1b || cond1c)&&cond2){
@@ -777,14 +797,14 @@ namespace YDORBSLAM{
         return true;
       }else{
         m_sptr_localMapper->interruptBA();
-        if(m_sys_sensor!=System::Sensor::MONOCULAR && m_sptr_localMapper->getInQueueKeyFramesNum()<3){
+        if(m_sys_sensor!=Sensor::MONOCULAR && m_sptr_localMapper->getInQueueKeyFramesNum()<3){
           return true;
         }else{
           return false;
         }
       }
     }else{
-      return false
+      return false;
     }
   }
   void Tracking::createNewKeyFrame(){
@@ -792,13 +812,13 @@ namespace YDORBSLAM{
       std::shared_ptr<KeyFrame> sptrNewKeyFrame = std::make_shared<KeyFrame>(m_frame_currentFrame,m_sptr_map,m_sptr_keyFrameDatabase);
       m_sptr_refKeyFrame = sptrNewKeyFrame;
       m_frame_currentFrame.m_sptr_refKeyFrame = m_sptr_refKeyFrame;
-      if(m_sys_sensor != System::Sensor::MONOCULAR){
+      if(m_sys_sensor != Sensor::MONOCULAR){
         m_frame_currentFrame.updatePoseMatrices();
         //sort points by measured depth from stereo/RGBD sensor
         //then create all close map points whose depth < threshold
         //if there are less than 100 close points then the 100 closest points are created
         std::vector<std::pair<float,int>> vDepthIndices;
-        vDepthIndices.reserve(m_frame_currentFrame.m_int_keyPointsNum)
+        vDepthIndices.reserve(m_frame_currentFrame.m_int_keyPointsNum);
         for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
           if(m_frame_currentFrame.m_v_depth[i]>0){
             vDepthIndices.push_back(std::make_pair(m_frame_currentFrame.m_v_depth[i],i));

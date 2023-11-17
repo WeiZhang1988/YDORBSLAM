@@ -112,8 +112,8 @@ namespace YDORBSLAM{
         if(_loopKeyFrameID==0){
           sptrKeyFrame->setCameraPoseByTransform_c2w(Converter::transform_SE3_cvMat(vertexSE3->estimate()));
         }else{
-          sptrKeyFrame->m_cvMat_T_c2w_GBA.create(4,4,CV_32F);
-          Converter::transform_SE3_cvMat(vertexSE3->estimate()).copyTo(sptrKeyFrame->m_cvMat_T_c2w_GBA);
+          sptrKeyFrame->m_cvMat_T_c2w_GlobalBA.create(4,4,CV_32F);
+          Converter::transform_SE3_cvMat(vertexSE3->estimate()).copyTo(sptrKeyFrame->m_cvMat_T_c2w_GlobalBA);
           sptrKeyFrame->m_int_globalBAForKeyFrameID = _loopKeyFrameID;
         }
       }

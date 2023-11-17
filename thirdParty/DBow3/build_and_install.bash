@@ -1,5 +1,5 @@
 #!/bin/bash
-printf "\e[1;36m----- building and installing eigen -----\e[0m\n"
+printf "\e[1;36m----- building and installing DBoW3 -----\e[0m\n"
 rm -r build install
 mkdir build
 cd build

@@ -108,6 +108,9 @@ namespace YDORBSLAM{
     cv::Mat m_cvMat_posGlobalBA;
     static std::mutex m_mutex_global;
     long int m_int_ID=-1;
+    long int m_int_firstKeyFrameID=-1;
+    long int m_int_firstFrameID=-1;
+    static long int m_int_reservedID;
     protected:
     //bad flag
     bool m_b_bad=false;
@@ -131,9 +134,6 @@ namespace YDORBSLAM{
     cv::Mat m_cvMat_posInWorld;
     //mean viewing direction, basically the direction from camera origin (optical center of camera) to the map point.
     cv::Mat m_cvMat_normalVector;
-    long int m_int_firstKeyFrameID=-1;
-    long int m_int_firstFrameID=-1;
-    static long int m_int_reservedID;
     std::shared_ptr<Map> m_sptr_map = std::shared_ptr<Map>(nullptr);
     static std::mutex m_mutex_ID;
     std::mutex m_mutex_badObsRefKeyFrmReplVsbFnd;

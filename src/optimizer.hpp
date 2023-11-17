@@ -29,6 +29,7 @@
 namespace YDORBSLAM{
   class LoopClosing;
   class Optimizer{
+    public:
     static void bundleAdjust(const std::vector<std::shared_ptr<KeyFrame>> &_vSptrKeyFrames, const std::vector<std::shared_ptr<MapPoint>> &_vSptrMapPoints, const int _iterNum = 5, bool &_bIsStopping = *(bool*)(nullptr), const long int _loopKeyFrameID = 0, const bool _bIsRobust = true);
     static void localBundleAdjust(std::shared_ptr<KeyFrame> _sptrKeyFrame, std::shared_ptr<Map> _sptrMap, bool &_bIsStopping = *(bool*)(nullptr));
     static void globalBundleAdjust(std::shared_ptr<Map> _sptrMap, const int _iterNum = 5, bool &_bIsStopping = *(bool*)(nullptr), const long int _loopKeyFrameID = 0, const bool _bIsRobust = true);

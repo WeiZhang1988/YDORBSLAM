@@ -16,6 +16,7 @@
 #include "loopClosing.hpp"
 #include "tracking.hpp"
 #include "keyFrameDatabase.hpp"
+#include "unistd.h"
 #include <memory>
 #include <list>
 #include <mutex>
@@ -27,8 +28,12 @@ namespace YDORBSLAM{
   class LocalMapping{
     public:
     LocalMapping(std::shared_ptr<Map> _sptr_map) : m_sptr_map(_sptr_map){}
-    void setLoopCloser(std::shared_ptr<LoopClosing> _sptr_loopCloser);
-    void setTracker(std::shared_ptr<Tracking> _sptr_tracker);
+    inline void setLoopCloser(std::shared_ptr<LoopClosing> _sptr_loopCloser){
+      m_sptr_loopcloser = _sptr_loopCloser;
+    }
+    inline void setTracker(std::shared_ptr<Tracking> _sptr_tracker){
+      m_sptr_tracker = _sptr_tracker;
+    }
     //main function
     void run();
     void insertKeyFrame(std::shared_ptr<KeyFrame> _sptr_keyFrame);

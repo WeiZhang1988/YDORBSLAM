@@ -34,17 +34,17 @@ namespace YDORBSLAM{
         m_sptr_loopcloser->insertKeyFrame(m_sptr_currentKeyFrame);
       }else if(stop()){
         //safe area to stop
-        while(isStopped() && !checkWhetherFinished()){
+        while(isStopped() && !isFinishRequested()){
           usleep(3000);
         }
-        if(!checkWhetherFinished()){
+        if(!isFinishRequested()){
           break;
         }
       }
       resetIfRequested();
       //tracking will see that local mapping is busy
       setAcceptKeyFrames(true);
-      if(checkWhetherFinished()){
+      if(isFinishRequested()){
         break;
       }
       usleep(3000);
@@ -52,17 +52,17 @@ namespace YDORBSLAM{
     setFinished();
   }
   void LocalMapping::insertKeyFrame(std::shared_ptr<KeyFrame> _sptr_keyFrame){
-    std::unique_lock<mutex> lock(m_mutex_newKeyFrames);
+    std::unique_lock<std::mutex> lock(m_mutex_newKeyFrames);
     m_list_newKeyFrames.push_back(_sptr_keyFrame);
     m_b_isToAbortBA = true;
   }
   bool LocalMapping::checkNewKeyFrames(){
-    std::unique_lock<mutex> lock(m_mutex_newKeyFrames);
+    std::unique_lock<std::mutex> lock(m_mutex_newKeyFrames);
     return (!m_list_newKeyFrames.empty());
   }
   void LocalMapping::processNewKeyFrame(){
     {
-      std::unique_lock<mutex> lock(m_mutex_newKeyFrames);
+      std::unique_lock<std::mutex> lock(m_mutex_newKeyFrames);
       m_sptr_currentKeyFrame = m_list_newKeyFrames.front();
       m_list_newKeyFrames.pop_front();
     }
@@ -141,9 +141,9 @@ namespace YDORBSLAM{
           cv::Mat connectedKeyFrameRotation_c2w = connectedKeyFrame->getRotation_c2w();
           cv::Mat connectedKeyFrameRotation_w2c = connectedKeyFrame->getRotation_w2c();
           cv::Mat connectedKeyFrameTranslation_c2w = connectedKeyFrame->getTranslation_c2w();
-          cv::Mat connectedKeyFrameTransformation(3,4,CV_32F);
-          connectedKeyFrameRotation_c2w.copyTo(connectedKeyFrameTransformation.colRange(0,3));
-          connectedKeyFrameTranslation_c2w.copyTo(connectedKeyFrameTransformation.col(3));
+          cv::Mat connectedKeyFrameTransformation_c2w(3,4,CV_32F);
+          connectedKeyFrameRotation_c2w.copyTo(connectedKeyFrameTransformation_c2w.colRange(0,3));
+          connectedKeyFrameTranslation_c2w.copyTo(connectedKeyFrameTransformation_c2w.col(3));
           const float& connectedKeyFrame_fx     = connectedKeyFrame->m_flt_fx;
           const float& connectedKeyFrame_fy     = connectedKeyFrame->m_flt_fy;
           const float& connectedKeyFrame_cx     = connectedKeyFrame->m_flt_cx;
@@ -157,8 +157,8 @@ namespace YDORBSLAM{
             const cv::KeyPoint &connectedKeyFrameKeyPoint = connectedKeyFrame->m_v_keyPoints[matchedIndicesPair.second];
             const float connectedKeyFrameKeyPointRightXcords = connectedKeyFrame->m_v_rightXcords[matchedIndicesPair.second];
             //check parallax between rays
-            cv::Mat currentKeyPointDirection = (cv::Mat_<float>(3,1) << (connectedKeyFrameKeyPoint.pt.x-currentKeyFrame_cx)*currentKeyFrame_invFx, (connectedKeyFrameKeyPoint.pt.y-currentKeyFrame_cy)*currentKeyFrame_invFy, 1.0);
-            cv::Mat connectedKeyPointDirection = (cv::Mat_<float>(3,1) << (connectedKeyFrame.pt.x-connectedKeyFrame_cx)*connectedKeyFrame_invFx, (connectedKeyFrame.pt.y-connectedKeyFrame_cy)*connectedKeyFrame_invFy, 1.0);
+            cv::Mat currentKeyPointDirection = (cv::Mat_<float>(3,1) << (currentKeyFrameKeyPoint.pt.x-currentKeyFrame_cx)*currentKeyFrame_invFx, (currentKeyFrameKeyPoint.pt.y-currentKeyFrame_cy)*currentKeyFrame_invFy, 1.0);
+            cv::Mat connectedKeyPointDirection = (cv::Mat_<float>(3,1) << (connectedKeyFrameKeyPoint.pt.x-connectedKeyFrame_cx)*connectedKeyFrame_invFx, (connectedKeyFrameKeyPoint.pt.y-connectedKeyFrame_cy)*connectedKeyFrame_invFy, 1.0);
             cv::Mat currentRayDirection = currentKeyFrameRotation_w2c * currentKeyPointDirection;
             cv::Mat connectedRayDirection = connectedKeyFrameRotation_w2c * connectedKeyPointDirection;
             const float cosParallaxRays = currentRayDirection.dot(connectedRayDirection) / (cv::norm(currentRayDirection) * cv::norm(connectedRayDirection));
@@ -170,7 +170,7 @@ namespace YDORBSLAM{
             }else if(connectedKeyFrameKeyPointRightXcords>=0){
               cosParallaxStereo2 = cosParallaxStereo;
             }
-            cosParallaxStereo = min(cosParallaxStereo1,cosParallaxStereo2);
+            cosParallaxStereo = std::min(cosParallaxStereo1,cosParallaxStereo2);
             cv::Mat inverseProject3D;
             if(cosParallaxRays<cosParallaxStereo && cosParallaxRays>0 && (currentKeyFrameKeyPointRightXcords>=0 || connectedKeyFrameKeyPointRightXcords>=0 || cosParallaxRays<0.9998)){
               //linear triangulation method
@@ -232,7 +232,7 @@ namespace YDORBSLAM{
               const float ratioOctave = m_sptr_currentKeyFrame->m_v_scaleFactors[currentKeyFrameKeyPoint.octave]/connectedKeyFrame->m_v_scaleFactors[connectedKeyFrameKeyPoint.octave];
               if(currentKeyFrameDist!=0 && connectedKeyFrameDist!=0 && ratioDist*ratioFactor>=ratioOctave && ratioDist<=ratioOctave*ratioFactor){
                 //triangulation succeeds
-                std::shared_ptr<MapPoint> sptrMapPoint = std::make_shared<MapPoint>(inverseProject3D,m_sptr_currentKeyFrame,sptrMapPoint);
+                std::shared_ptr<MapPoint> sptrMapPoint = std::make_shared<MapPoint>(inverseProject3D,m_sptr_map,m_sptr_currentKeyFrame);
                 sptrMapPoint->addObservation(m_sptr_currentKeyFrame, matchedIndicesPair.first);
                 sptrMapPoint->addObservation(connectedKeyFrame, matchedIndicesPair.second);
                 m_sptr_currentKeyFrame->addMapPoint(sptrMapPoint, matchedIndicesPair.first);
@@ -269,7 +269,7 @@ namespace YDORBSLAM{
     OrbMatcher matcher;
     const std::vector<std::shared_ptr<MapPoint>> &vSptrCurrentMatchedMapPoints = m_sptr_currentKeyFrame->getMatchedMapPointsVec();
     for(std::shared_ptr<KeyFrame> &targetKeyFrame : vSptrTargetKeyFrames){
-      matcher.FuseByProjection(targetKeyFrame,vSptrCurrentMatchedMapPoints);
+      matcher.fuseByProjection(targetKeyFrame,vSptrCurrentMatchedMapPoints);
     }
     //search matches by projection from target key frames in current key frames
     std::vector<std::shared_ptr<MapPoint>> vSptrFuseCandidateMapPoints;
@@ -282,7 +282,7 @@ namespace YDORBSLAM{
         }
       }
     }
-    matcher.FuseByProjection(m_sptr_currentKeyFrame,vSptrFuseCandidateMapPoints);
+    matcher.fuseByProjection(m_sptr_currentKeyFrame,vSptrFuseCandidateMapPoints);
     //update points
     for(std::shared_ptr<MapPoint> &updateCurrentMapPoint : m_sptr_currentKeyFrame->getMatchedMapPointsVec()){
       if(updateCurrentMapPoint && !updateCurrentMapPoint->isBad()){
@@ -383,8 +383,8 @@ namespace YDORBSLAM{
             mapPointsNum++;
             if(vMatchedMapPoints[i]->getObservationsNum() > observationNumThd){
               int observationNum = 0;
-              for(std::pair<std::shared_ptr<KeyFrame>,int> &localMapPointObs : vMatchedMapPoints[i]->getObservations()){
-                if(localMapPointObs.first != localKeyFrame && localMapPointObs.first->m_v_keyPoints[localMapPointObs.second].octave <= localKeyFrame->m_v_keyPoints[i] + 1){
+              for(std::pair<const std::shared_ptr<KeyFrame>,int> &localMapPointObs : vMatchedMapPoints[i]->getObservations()){
+                if(localMapPointObs.first != localKeyFrame && (localMapPointObs.first->m_v_keyPoints[localMapPointObs.second].octave <= localKeyFrame->m_v_keyPoints[i].octave + 1)){
                   observationNum++;
                   if(observationNum>=observationNumThd){
                     break;
