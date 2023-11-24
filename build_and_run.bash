@@ -8,7 +8,6 @@ cmake --build . --parallel 16
 cmake --install .
 cd ..
 
-
 printf "\e[1;36m----- building and installing test -----\e[0m\n"
 cd test
 rm -r build exe

@@ -139,16 +139,11 @@ cv::Mat System::trackRGBD(const cv::Mat& _cvMatImage, const cv::Mat& _cvMatDepth
             m_b_reset = false;
         }
     }
-    std::cout<<"1111111111111111111111"<<std::endl;
     cv::Mat cvMatTc2w = m_sptr_tracker->grabImageRGBD(_cvMatImage,_cvMatDepth,_dbTimeStamp);
-    std::cout<<"2222222222222222222222"<<std::endl;
     std::unique_lock<std::mutex> lock2(m_mutex_state);
     m_int_trackingState = (int)m_sptr_tracker->m_ts_state;
-    std::cout<<"3333333333333333333"<<std::endl;
     m_v_sptrTrackedMapPoints = m_sptr_tracker->m_frame_currentFrame.m_v_sptrMapPoints;
-    std::cout<<"4444444444444444444"<<std::endl;
     m_v_cvPointTrackedKeyPoints = m_sptr_tracker->m_frame_currentFrame.m_v_keyPoints;
-    std::cout<<"55555555555555555555"<<std::endl;
     return cvMatTc2w;
 }
 

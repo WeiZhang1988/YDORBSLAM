@@ -101,11 +101,11 @@ void Viewer::run(){
             menuShowPoints = true;
             menuLocalizationMode = false;
             if(bLocalizationMode)
-                m_sptr_system->deactivateLocalizationMode(); //no define
+                m_sptr_system->deactivateLocalizationMode();
             bLocalizationMode = false;
             bFollow = true;
             menuFollowCamera = true;
-            m_sptr_system->reset(); //no define
+            m_sptr_system->reset();
             menuReset = false;
         }
         if(stop()){

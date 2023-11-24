@@ -22,7 +22,8 @@ MapDrawer::MapDrawer(std::shared_ptr<Map> _sptrMap, const std::string& _strConfi
     m_flt_cameraLineWidth = fileConfigs["Viewer.CameraLineWidth"];     //3
 }
 void MapDrawer::drawMapPoints(){
-    std::set<std::shared_ptr<MapPoint>> sSptrRefMPs(m_sptr_map->getReferenceMapPoints().begin(),m_sptr_map->getReferenceMapPoints().end());
+    const std::vector<std::shared_ptr<MapPoint>>& vSptrRefMPs = m_sptr_map->getReferenceMapPoints();
+    std::set<std::shared_ptr<MapPoint>> sSptrRefMPs(vSptrRefMPs.begin(),vSptrRefMPs.end());
     if(m_sptr_map->getAllMapPoints().empty()){
         return;
     }

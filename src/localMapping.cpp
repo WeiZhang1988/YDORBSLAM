@@ -37,7 +37,7 @@ namespace YDORBSLAM{
         while(isStopped() && !isFinishRequested()){
           usleep(3000);
         }
-        if(!isFinishRequested()){
+        if(isFinishRequested()){
           break;
         }
       }

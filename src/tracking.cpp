@@ -87,13 +87,15 @@ namespace YDORBSLAM{
         cv::cvtColor(rightGrayImage,rightGrayImage,cv::COLOR_BGRA2GRAY);
       }
     }
+
     m_frame_currentFrame = Frame(m_cvMat_grayImage,rightGrayImage,_timestamp,m_cvMat_intParMat,m_cvMat_leftImageDistCoef,m_cvMat_rightImageDistCoef,m_flt_baseLineTimesFx,m_flt_depthThd,m_sptr_leftOrbExtractor,m_sptr_rightOrbExtractor,m_sptr_orbVocabulary);
     track();
+
     return m_frame_currentFrame.m_cvMat_T_c2w.clone();
   }
   cv::Mat Tracking::grabImageRGBD(const cv::Mat &_rgbImage, const cv::Mat &_depthImage, const double &_timestamp){
-    m_cvMat_grayImage = _rgbImage;
-    cv::Mat depthImage = _depthImage;
+    m_cvMat_grayImage  = _rgbImage.clone();
+    cv::Mat depthImage = _depthImage.clone();
     if(m_b_isRGB){
       if(m_cvMat_grayImage.channels()==3){
         cv::cvtColor(m_cvMat_grayImage,m_cvMat_grayImage,cv::COLOR_RGB2GRAY);
@@ -111,7 +113,6 @@ namespace YDORBSLAM{
       depthImage.convertTo(depthImage,CV_32F,m_flt_depthMapFactor);
     }
     m_frame_currentFrame = Frame(m_cvMat_grayImage,depthImage,_timestamp,m_cvMat_intParMat,m_cvMat_leftImageDistCoef,m_flt_baseLineTimesFx,m_flt_depthThd,m_sptr_leftOrbExtractor,m_sptr_orbVocabulary);
-    std::cout<<"------------------grabImageRGBD"<<std::endl;
     track();
     return m_frame_currentFrame.m_cvMat_T_c2w.clone();
   }
@@ -245,12 +246,7 @@ namespace YDORBSLAM{
       }else{
         if(m_ts_state==TrackingState::OK){
           checkReplacementInLastFrame();
-          std::cout<<"---------------------1"<<std::endl;
-          /*std::cout<<!m_cvMat_velocity.empty()<<std::endl;
-          std::cout<<(m_frame_currentFrame.m_int_ID>=m_int_lastRelocalizedFrameID+2)<<std::endl;
-          std::cout<<trackWithMotionModel()<<std::endl;*/
           if(m_cvMat_velocity.empty() ||  m_frame_currentFrame.m_int_ID<m_int_lastRelocalizedFrameID+2){
-            std::cout<<"---------------------2"<<std::endl;
             isOK = trackReferenceKeyFrame();
           }else{
             isOK = trackWithMotionModel();
@@ -384,16 +380,12 @@ namespace YDORBSLAM{
     OrbMatcher matcher(0.7,true);
     std::vector<std::shared_ptr<MapPoint>> vSptrMatchedMapPoint;
     int refKeyFrame2currKeyFrameMatchNum = matcher.searchByBowInKeyFrameAndFrame(m_sptr_refKeyFrame,m_frame_currentFrame,vSptrMatchedMapPoint);
-    std::cout<<"------------trackReferenceKeyFrame"<<std::endl;
-    std::cout<<"refKeyFrame2currKeyFrameMatchNum="<<refKeyFrame2currKeyFrameMatchNum<<std::endl;
     if(refKeyFrame2currKeyFrameMatchNum>=15){
       m_frame_currentFrame.m_v_sptrMapPoints = vSptrMatchedMapPoint;
       m_frame_currentFrame.setCameraPoseByTransform_c2w(m_frame_lastFrame.m_cvMat_T_c2w);
-      std::cout<<"------------setCameraPoseByTransform_c2w"<<std::endl;
       Optimizer::optimizePose(m_frame_currentFrame);
       //discard outliers
       int matchedMapPointsNum = 0;
-      std::cout<<"------------optimizePose"<<std::endl;
       for(int i=0;i<m_frame_currentFrame.m_int_keyPointsNum;i++){
         if(m_frame_currentFrame.m_v_sptrMapPoints[i]){
           if(m_frame_currentFrame.m_v_isOutliers[i]){
@@ -414,11 +406,7 @@ namespace YDORBSLAM{
   }
   void Tracking::updateLastFrame(){
     //update pose according to reference key frame
-    std::cout<<"--------------updateLastFrame"<<std::endl;
-    //std::cout<<"m_frame_currentFrame.m_sptr_refKeyFrame="<<m_frame_currentFrame.m_sptr_refKeyFrame<<std::endl;
-    std::cout<<"m_frame_lastFrame.m_sptr_refKeyFrame="<<m_frame_lastFrame.m_sptr_refKeyFrame<<std::endl;
     m_frame_lastFrame.setCameraPoseByTransform_c2w(m_list_relFramePoses.back()*m_frame_lastFrame.m_sptr_refKeyFrame->getCameraPoseByTransform_c2w());
-    std::cout<<"--------------setCameraPoseByTransform_c2w"<<std::endl;
     if(m_int_lastKeyFrameID==m_frame_lastFrame.m_int_ID || !m_b_isTrackingOnly){
       return;
     }
@@ -455,7 +443,6 @@ namespace YDORBSLAM{
     OrbMatcher matcher(0.9,true);
     //update last frame pose according to its reference key frame
     //create visual odometry points if in localization mode
-    std::cout<<"--------------trackWithMotionModel"<<std::endl;
     updateLastFrame();
     m_frame_currentFrame.setCameraPoseByTransform_c2w(m_cvMat_velocity*m_frame_lastFrame.m_cvMat_T_c2w);
     std::fill(m_frame_currentFrame.m_v_sptrMapPoints.begin(),m_frame_currentFrame.m_v_sptrMapPoints.end(),static_cast<std::shared_ptr<MapPoint>>(nullptr));

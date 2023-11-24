@@ -359,7 +359,7 @@ namespace YDORBSLAM{
     g2o::SparseOptimizer optimizer;
     optimizer.setVerbose(false);
     typedef g2o::BlockSolver_6_3 BlockSolverType;
-    typedef g2o::LinearSolverEigen<BlockSolverType::PoseMatrixType> LinearSolverType;
+    typedef g2o::LinearSolverDense<BlockSolverType::PoseMatrixType> LinearSolverType;
     g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<BlockSolverType>(g2o::make_unique<LinearSolverType>()));
     optimizer.setAlgorithm(solver);
     int initialCorrespondenceNum = 0;
