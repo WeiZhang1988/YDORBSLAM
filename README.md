@@ -14,3 +14,11 @@ solution: copy it from thirdParty/DBow3
 3. thirdParty/g2o/build_and_install.bash may not be added correctly due to unknown git issue
 
 solution: copy it from thirdParty/DBow3
+
+4. thirdParty/Pangolin/build_and_install.bash may not be added correctly due to unknown git issue
+
+solution: copy it from thirdParty/DBow3
+
+5. thirdParty/Pangolin/include may not be added correctly due to unknown git issue
+
+solution: get the folder from Pangolin(V0.6) github repository
