@@ -102,7 +102,7 @@ namespace YDORBSLAM{
       }
       i_for++;
     }
-    optimizer.initializeOptimization();
+    optimizer.initializeOptimization(0);
     optimizer.optimize(_iterNum);
     //recover optimized data
     //key frames
@@ -284,7 +284,7 @@ namespace YDORBSLAM{
     if(&_bIsStopping && _bIsStopping){
       return;
     }
-    optimizer.initializeOptimization();
+    optimizer.initializeOptimization(0);
     optimizer.optimize(5);
     bool isToOptimizeWithOutOutliers = true;
     if(!&_bIsStopping || !_bIsStopping){
@@ -628,7 +628,7 @@ namespace YDORBSLAM{
       }
     }
     //optimize
-    optimizer.initializeOptimization();
+    optimizer.initializeOptimization(0);
     optimizer.optimize(20);
     std::unique_lock<std::mutex> lock(_sptrMap->m_mutex_updateMap);
     //SE3 Pose recovering. Sim3:[sR t;0 1] -> SE3:[R t/s;0 1] Should the t be divided by s? 
@@ -753,7 +753,7 @@ namespace YDORBSLAM{
       }
     }
     //optimize
-    optimizer.initializeOptimization();
+    optimizer.initializeOptimization(0);
     optimizer.optimize(5);
     //check inliners
     int badNum = 0;
@@ -780,7 +780,7 @@ namespace YDORBSLAM{
       return 0;
     }
     //optimize again only with inliers
-    optimizer.initializeOptimization();
+    optimizer.initializeOptimization(0);
     optimizer.optimize(extraIterNum);
     int inlinerNum = 0;
     for(int i=0;i<vSptrEdges_first2second.size();i++){
