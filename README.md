@@ -22,3 +22,6 @@ solution: copy it from thirdParty/DBow3
 5. thirdParty/Pangolin/include may not be added correctly due to unknown git issue
 
 solution: get the folder from Pangolin(V0.6) github repository
+
+
+https://www.youtube.com/watch?v=6uh6J3VVy1s

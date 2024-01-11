@@ -19,3 +19,5 @@ thirdParty/g2o/install
 
 thirdParty/Pangolin/build
 thirdParty/Pangolin/install
+
+video/
