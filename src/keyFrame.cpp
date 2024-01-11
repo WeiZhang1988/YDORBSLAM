@@ -296,7 +296,7 @@ namespace YDORBSLAM{
                   if(child->getWeight(connectedKeyFrame)>maxWeight){
                     sptrChild = child;
                     sptrParent = connectedKeyFrame;
-                    maxWeight = getWeight(connectedKeyFrame);
+                    maxWeight = child->getWeight(connectedKeyFrame);
                     bContinue = true;
                   }
                 }
